@@ -1,85 +1,54 @@
-from app.models import User
-from app.core.db import engine
+from typing import Optional
 from sqlmodel import Session, select
+from app.core.db import engine
+from app.models import User
 from app.schemas import UserPublic, UpdateUser
-import numpy as np
 
-def normalize(vec: list[float]) -> list[float]:
-    v = np.array(vec, dtype=np.float32)
-    return (v / np.linalg.norm(v)).tolist()
+class UserRepository:
+    def create(self, data: User) -> UserPublic:
+        with Session(engine) as session:
+            session.add(data)
+            session.commit()
+            session.refresh(data)
+            return UserPublic.model_validate(data)
 
-class UserRepository():
-  def create(self, data: User) -> UserPublic:
-    with Session(engine) as session:
-        session.add(data)
-        session.commit()
-        session.refresh(data)
-        return UserPublic.model_validate(data)
-  
-  def findById(self, id: str, org_id: str) -> UserPublic | None:
-    with Session(engine) as session:
-        stmt = select(User).where(User.id == id).where(User.organization_id == org_id)
-        result = session.exec(stmt).first()
-        if not result:
-           return None 
-        return UserPublic.model_validate(result)
-    
-  def findOne(self, qr_code: str, org_id: str) -> UserPublic | None:
-    with Session(engine) as session:
-        stmt = select(User).where(User.qr_code == qr_code).where(User.organization_id == org_id)
-        result = session.exec(stmt).first()
-        if not result:
-           return None 
-        return UserPublic.model_validate(result)
+    def find_by_id(self, id: str) -> Optional[UserPublic]:
+        with Session(engine) as session:
+            result = session.exec(select(User).where(User.id == id)).first()
+            return UserPublic.model_validate(result) if result else None
 
-  def findByEmbedding(self, org_id: str, embedding: list[float], top_k: int = 5) -> list[UserPublic]:
-    with Session(engine) as session:
-        stmt = (
-            select(User, User.embedding.cosine_distance(embedding).label("distance"))
-            .where(User.organization_id == org_id)
-            .order_by(User.embedding.cosine_distance(embedding))
-            .limit(top_k)
-        )
-        rows = session.exec(stmt).all()
-        results = []
-        for user, distance in rows:
-            print(distance)
-            if distance <= 0.6:
-                results.append(UserPublic.model_validate(user))
-        return results
-  
-  def findAll(self, org_id: str, skip: int | None = None, limit: int | None = None) -> list[UserPublic]:
-    with Session(engine) as session:
-        stmt = select(User).where(User.organization_id == org_id)
-        if skip:
-            stmt = stmt.offset(skip)
-        if limit:
-            stmt = stmt.limit(limit)
-        results = session.exec(stmt).all()
-        return [UserPublic.model_validate(user) for user in results]
-    
-  def updateById(self, id: str, org_id: str, data: UpdateUser) -> UserPublic | None:
-    with Session(engine) as session:
-        stmt = select(User).where(User.id == id).where(User.organization_id == org_id)
-        user = session.exec(stmt).first()
-        if not user:
-            return None
-        
-        update_data = data.model_dump(exclude_unset=True)
-        for key, value in update_data.items():
-            setattr(user, key, value)
+    def find_by_phone(self, phone: str) -> Optional[User]:
+        with Session(engine) as session:
+            return session.exec(select(User).where(User.phone == phone)).first()
 
-        session.add(user)
-        session.commit()
-        session.refresh(user)
-        return UserPublic.model_validate(user)
-    
-  def deleteById(self, id: str, org_id: str) -> UserPublic | None:
-    with Session(engine) as session:
-        stmt = select(User).where(User.id == id, User.organization_id == org_id)
-        user = session.exec(stmt).first()
-        if not user:
-            return None
-        session.delete(user)
-        session.commit()
-        return UserPublic.model_validate(user)
+    def find_all(self, skip: int | None = None, limit: int | None = None) -> list[UserPublic]:
+        with Session(engine) as session:
+            stmt = select(User)
+            if skip:
+                stmt = stmt.offset(skip)
+            if limit:
+                stmt = stmt.limit(limit)
+            results = session.exec(stmt).all()
+            return [UserPublic.model_validate(u) for u in results]
+
+    def update_by_id(self, id: str, data: UpdateUser) -> Optional[UserPublic]:
+        with Session(engine) as session:
+            user = session.exec(select(User).where(User.id == id)).first()
+            if not user:
+                return None
+            update_data = data.model_dump(exclude_unset=True)
+            for k, v in update_data.items():
+                setattr(user, k, v)
+            session.add(user)
+            session.commit()
+            session.refresh(user)
+            return UserPublic.model_validate(user)
+
+    def delete_by_id(self, id: str) -> Optional[UserPublic]:
+        with Session(engine) as session:
+            user = session.exec(select(User).where(User.id == id)).first()
+            if not user:
+                return None
+            session.delete(user)
+            session.commit()
+            return UserPublic.model_validate(user)

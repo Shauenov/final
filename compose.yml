@@ -1,78 +1,76 @@
-x-db-env: &db-env
-  PGDATABASE: ${POSTGRES_DB}
-  POSTGRES_USER: ${POSTGRES_USER}
-  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-  POSTGRES_PORT: ${POSTGRES_PORT}
-  POSTGRES_DB: ${POSTGRES_DB}
-
-x-minio-env: &minio-env
-  MINIO_ROOT_USER: ${AWS_ACCESS_KEY_ID}
-  MINIO_ROOT_PASSWORD: ${AWS_SECRET_ACCESS_KEY}
-
-x-aws-s3-env: &aws-s3-env
-  AWS_REGION: ${AWS_REGION:-}
-  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-  AWS_S3_ENDPOINT_URL: ${AWS_S3_ENDPOINT_URL}
-  AWS_S3_BUCKET_NAME: ${AWS_S3_BUCKET_NAME:-uploads}
-
+name: bus
 services:
-  beyne-db:
-    image: postgres:16.0-alpine
-    ports:
-      - 5432:5432
-    networks:
-      - beyne-network
+  bus-db:
+    image: postgres:16-alpine
     environment:
-      <<: [*db-env]
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports: ["5432:5432"]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5
     volumes:
-      - beyne_pgdata:/var/lib/postgresql/data
+      - bus_pgdata:/var/lib/postgresql/data
+    networks: [bus-network]
 
-  beyne-minio:
+  bus-minio:
     image: minio/minio:RELEASE.2025-04-08T15-41-24Z
     command: server /data --console-address ":9090"
     environment:
-      <<: [*minio-env]
+      MINIO_ROOT_USER: ${AWS_ACCESS_KEY_ID}
+      MINIO_ROOT_PASSWORD: ${AWS_SECRET_ACCESS_KEY}
     ports:
-      - 9000:9000
-      - 9090:9090
+      - "9000:9000"
+      - "9090:9090"
     healthcheck:
-      test: ["CMD", "mc", "alias", "set", "minio", "http://localhost:9000", "$AWS_ACCESS_KEY_ID", "$AWS_SECRET_ACCESS_KEY"]
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/ready"]
       interval: 5s
       timeout: 5s
-      retries: 5
-    networks:
-      - beyne-network
+      retries: 10
     volumes:
-      - beyne_s3_storage:/data
+      - bus_s3_storage:/data
+    networks: [bus-network]
 
-  beyne-redis:
-    image: redis:latest
-    restart: unless-stopped
+  bus-redis:
+    image: redis:7-alpine
     command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
-    ports:
-      - 6379:6379
-    networks:
-      - beyne-network
-    volumes:
-      - beyne_redisdata:/data
+    ports: ["6379:6379"]
     environment:
-      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 5s
       timeout: 5s
       retries: 5
+    volumes:
+      - bus_redisdata:/data
+    networks: [bus-network]
+    profiles: ["redis"]
+
+  bus-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      AWS_S3_ENDPOINT_URL: http://bus-minio:9000
+    depends_on:
+      bus-db:
+        condition: service_healthy
+      bus-minio:
+        condition: service_healthy
+    volumes:
+      - ./:/app
+    ports: ["8000:8000"]
+    networks: [bus-network]
 
 volumes:
-  beyne_pgdata:
-  beyne_s3_storage:
-  beyne_redisdata:
+  bus_pgdata:
+  bus_s3_storage:
+  bus_redisdata:
 
 networks:
-  beyne-network:
+  bus-network:

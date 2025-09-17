@@ -1,90 +1,53 @@
-from typing import Annotated
+from typing import Annotated, Optional
 import uuid
 from pydantic import Field
-from fastapi import Form, APIRouter, UploadFile, Depends, Path
+from fastapi import APIRouter, Depends, Path, Body
 
-from app.models import ActivityType
 from app.modules.user.user_service import UserService
 from app.schemas import CreateUser, UpdateUser, UserPublic
-from app.modules.organization.organization_service import organization_guard
+from app.modules.auth.auth_router import user_guard  # реиспользуем guard из auth
 
 service = UserService()
 
 user_router = APIRouter(
-    prefix="/organization/{org_id}/users",
-    tags=["User"],
+    prefix="/users",
+    tags=["users"],
 )
 
 @user_router.get("/{id}", response_model=UserPublic | None)
 def get_user_by_id(
-    id: Annotated[str, Path(description="The id of user")],
-    org=Depends(organization_guard)
+    id: Annotated[str, Path(description="User id")],
+    _=Depends(user_guard)
 ):
-    return service.findById(id, org_id=org["id"])
+    return service.findById(id)
 
 @user_router.get("/", response_model=list[UserPublic])
 def get_users(
-    skip: int | None = None,
-    limit: int | None = None,
-    org=Depends(organization_guard)
+    skip: Optional[int] = None,
+    limit: Optional[int] = None,
+    _=Depends(user_guard)
 ):
-    return service.findAll(org_id=org["id"], skip=skip, limit=limit)
+    return service.findAll(skip=skip, limit=limit)
 
 @user_router.post("/", response_model=UserPublic)
-async def create_user(
-    name: Annotated[
-        str,
-        Form(...),
-        Field(min_length=2, examples=["Chingizkhan Johnson"])
-    ],
-    number: Annotated[
-        str,
-        Form(...),
-        Field(pattern=r"^\+7\d{10}$", examples=["+77474156800"])
-    ],
-    image: UploadFile,
-    org=Depends(organization_guard)
+def create_user(
+    data: CreateUser = Body(...),
+    _=Depends(user_guard)
 ):
-    return await service.create(
-        CreateUser(name=name, number=number, organization_id=org["id"]),
-        image
-    )
+    # админ-контроль можно сделать здесь (запрет на создание без admin-ролей)
+    return service.create_user(data)
 
 @user_router.delete("/{id}", response_model=UserPublic)
 def delete_user(
-    id: Annotated[uuid.UUID, Path(description="The id of user")],
-    org=Depends(organization_guard)
+    id: Annotated[uuid.UUID, Path(description="User id")],
+    _=Depends(user_guard)
 ):
-    return service.deleteById(id, org_id=org["id"])
+    return service.deleteById(id)
 
 @user_router.patch("/{id}", response_model=UserPublic)
 def update_user(
-    id: Annotated[uuid.UUID, Path(description="The id of user")],
+    id: Annotated[uuid.UUID, Path(description="User id")],
     data: UpdateUser,
-    org=Depends(organization_guard)
+    _=Depends(user_guard)
 ):
-    return service.updateById(id, org_id=org["id"], data=data)
-
-@user_router.post("/recognize", response_model=list[UserPublic])
-async def recognize_face(
-    image: UploadFile,
-    org=Depends(organization_guard)
-):
-    return await service.recognizeFace(image, org_id=org["id"])
-
-@user_router.post("/validate/{qr}", response_model=UserPublic | None)
-async def validate_qr_code(
-    qr: Annotated[uuid.UUID, Form(...), Path(description="QR code of user")],
-    org=Depends(organization_guard),
-) -> UserPublic | None:
-    return await service.findOne(qr, org_id=org["id"])
-
-@user_router.post("/record-action/{id}", response_model=UserPublic | None)
-def record_action(
-    id: Annotated[uuid.UUID, Form(...), Path(description="ID of user")],
-    action: Annotated[ActivityType, Form(...)],
-    image: UploadFile,
-    org=Depends(organization_guard),
-) -> UserPublic | None:
-    # return await self.userActivity.create(CreateUserActivity(user_id=user.id, type=ActivityType.ENTRY.value if user.at_work else ActivityType.EXIT.value))
-    return service.updateById(id, org_id=org["id"], data=UpdateUser(at_work=True if action == ActivityType.ENTRY else False))
+    return service.updateById(id, data)
