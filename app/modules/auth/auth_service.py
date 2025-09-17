@@ -21,6 +21,7 @@ class AuthService:
                 raise HTTPException(status_code=401, detail="Invalid credentials")
 
             payload = {"id": str(user.id), "fullname": user.fullname, "phone": user.phone, "role": user.role}
+            print("DEBUG payload ->", payload) 
             access = create_access_token(payload, expires_delta=timedelta(days=7))
             refresh = create_refresh_token(payload, expires_delta=timedelta(days=14))
             return {"access_token": access, "refresh_token": refresh}

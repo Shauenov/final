@@ -5,7 +5,8 @@ from fastapi import APIRouter, Depends, Path, Body
 
 from app.modules.user.user_service import UserService
 from app.schemas import CreateUser, UpdateUser, UserPublic
-from app.modules.auth.auth_router import user_guard  # реиспользуем guard из auth
+from app.modules.auth.auth_router import any_user_guard
+
 
 service = UserService()
 
@@ -17,7 +18,7 @@ user_router = APIRouter(
 @user_router.get("/{id}", response_model=UserPublic | None)
 def get_user_by_id(
     id: Annotated[str, Path(description="User id")],
-    _=Depends(user_guard)
+    _=Depends(any_user_guard)
 ):
     return service.findById(id)
 
@@ -25,14 +26,14 @@ def get_user_by_id(
 def get_users(
     skip: Optional[int] = None,
     limit: Optional[int] = None,
-    _=Depends(user_guard)
+    _=Depends(any_user_guard)
 ):
     return service.findAll(skip=skip, limit=limit)
 
 @user_router.post("/", response_model=UserPublic)
 def create_user(
     data: CreateUser = Body(...),
-    _=Depends(user_guard)
+    _=Depends(any_user_guard)
 ):
     # админ-контроль можно сделать здесь (запрет на создание без admin-ролей)
     return service.create_user(data)
@@ -40,7 +41,7 @@ def create_user(
 @user_router.delete("/{id}", response_model=UserPublic)
 def delete_user(
     id: Annotated[uuid.UUID, Path(description="User id")],
-    _=Depends(user_guard)
+    _=Depends(any_user_guard)
 ):
     return service.deleteById(id)
 
@@ -48,6 +49,6 @@ def delete_user(
 def update_user(
     id: Annotated[uuid.UUID, Path(description="User id")],
     data: UpdateUser,
-    _=Depends(user_guard)
+    _=Depends(any_user_guard)
 ):
     return service.updateById(id, data)
