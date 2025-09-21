@@ -1,7 +1,9 @@
 # app/schemas.py (только блок users)
+from datetime import datetime
 import uuid
 from typing import Optional
 from pydantic import BaseModel, Field
+from app.modules.videos.enums import VideoStatus  # импорт ТОЛЬКО enum
 
 PHONE_RE = r"^\+7\d{10}$"
 
@@ -24,3 +26,6 @@ class UserPublic(BaseModel):
     role: str
     class Config:
         from_attributes = True
+
+
+# VIDEOS SCHEMAS ---------------------------
