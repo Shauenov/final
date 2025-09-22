@@ -49,7 +49,7 @@ class MinioService:
                 content_type=content_type,
             )
             logger.info("uploaded %s to s3://%s/%s", src_path, bucket, object_name)
-            return f"{bucket}/{object_name}"
+            return f"{settings.AWS_S3_PUBLIC_URL}/{bucket}/{object_name}"
         except S3Error as e:
             logger.error("upload_file error: %s", e)
             raise

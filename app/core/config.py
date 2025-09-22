@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     AWS_S3_ENDPOINT_URL: str            # http(s)://host:port
     AWS_S3_BUCKET_NAME: str
     AWS_S3_SECURE: Optional[bool] = None  # если не указан — выводим из схемы URL
+    AWS_S3_PUBLIC_URL: str
 
     # Логи/метрики (опционально)
     ENABLE_METRICS: bool = False
