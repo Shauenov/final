@@ -3,6 +3,7 @@ from datetime import datetime
 import uuid
 from typing import Optional
 from pydantic import BaseModel, Field
+from app.models import GenreType
 from app.modules.videos.enums import VideoStatus  # импорт ТОЛЬКО enum
 
 PHONE_RE = r"^\+7\d{10}$"
@@ -51,29 +52,59 @@ class PlaylistPublic(BaseModel):
       from_attributes = True
 
 class CreateMusic(BaseModel):
-  title: str = Field()
-  playlist_id: str = Field()
-  description: str = Field()
-  preview_img: str = Field()
-  music_url: str = Field()
-  duration: int = Field()
+    title: str = Field()
+    playlist_id: str = Field()
+    description: str = Field()
+    preview_img: str = Field()
+    music_url: str = Field()
+    duration: int = Field()
+    genre_id: Optional[str] = Field(default=None, description="ID жанра")
 
 
 class UpdateMusic(BaseModel):
-  title: Optional[str] = Field(default=None)
-  description: Optional[str] = Field(default=None)
-  music_url: Optional[str] = Field(default=None)
+    title: Optional[str] = Field(default=None)
+    description: Optional[str] = Field(default=None)
+    music_url: Optional[str] = Field(default=None)
+    genre_id: Optional[str] = Field(default=None)
+
 
 class MusicPublic(BaseModel):
-  id: uuid.UUID = Field()
-  title: str = Field()
-  description: str = Field()
-  preview_img: str = Field()
-  music_url: str = Field()
-  duration: int = Field()
-  created_at: datetime
-  updated_at: datetime
-  deleted_at: datetime | None = Field(nullable=True)
+    id: uuid.UUID = Field()
+    title: str = Field()
+    description: str = Field()
+    preview_img: str = Field()
+    music_url: str = Field()
+    duration: int = Field()
+    genre_id: Optional[uuid.UUID] = Field(default=None)
+    created_at: datetime
+    updated_at: datetime
+    deleted_at: datetime | None = Field(default=None)
 
-  class Config:
-      from_attributes = True
+    class Config:
+        from_attributes = True
+
+class GenreBase(BaseModel):
+    name: str = Field(max_length=100)
+    description: Optional[str] = None
+    type: GenreType
+
+class GenreCreate(GenreBase):
+    pass
+
+class GenreUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, max_length=100)
+    description: Optional[str] = None
+    type: Optional[GenreType] = None
+
+
+class GenrePublic(BaseModel):
+    id: uuid.UUID
+    name: str
+    description: Optional[str] = None
+    type: GenreType
+    created_at: datetime
+    updated_at: datetime
+    deleted_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True

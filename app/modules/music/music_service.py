@@ -28,11 +28,26 @@ class MusicService():
         else:
             self.updateById(music_id, UpdateMusic(status=MusicStatus.FAILED))
 
-    async def create(self, playlist_id: str, title: str, description: str, preview_img: UploadFile, music: UploadFile, background_tasks: BackgroundTasks) -> MusicPublic:
+    async def create(
+        self,
+        playlist_id: str,
+        title: str,
+        description: str,
+        preview_img: UploadFile,
+        music: UploadFile,
+        background_tasks: BackgroundTasks,
+        genre_id: str | None = None,
+    ) -> MusicPublic:
         try:
             playlist = self.playlistService.findById(playlist_id)
             if not playlist:
                 raise HTTPException(status_code=400, detail="Playlist not found")
+
+            genre = None
+            if genre_id:
+                genre = self.genreService.findById(genre_id)
+                if not genre:
+                    raise HTTPException(status_code=400, detail="Genre not found")
 
             self.validate_audio_file(music)
             with tempfile.NamedTemporaryFile(delete=False) as tmp:
@@ -62,7 +77,8 @@ class MusicService():
                     description=description,
                     duration=duration,
                     music_url=music_key,
-                    preview_img=image_key
+                    preview_img=image_key,
+                    genre_id=genre_id if genre else None,
                 )
             )
 
