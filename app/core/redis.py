@@ -1,18 +1,19 @@
+# app/core/redis.py (опциональная версия)
 import redis
 from app.core.logger import logger
 from app.core.config import settings
 
-r = redis.Redis(
-  host=settings.REDIS_HOST,
-  port=settings.REDIS_PORT,
-  password=settings.REDIS_PASSWORD,
-)
-
+r = None
 try:
-    response = r.ping()
-    if response:
-        logger.info("Successfully connected to redis")
-    else:
-        logger.info("Connecting to Redis failure")
+    if settings.REDIS_HOST and settings.REDIS_PORT:
+        r = redis.Redis(
+            host=settings.REDIS_HOST,
+            port=settings.REDIS_PORT,
+            password=settings.REDIS_PASSWORD,
+            socket_connect_timeout=1,
+        )
+        if r.ping():
+            logger.info("redis: ok")
 except Exception as e:
-    logger.error(f"Произошла ошибка: {e}")
+    logger.warning("redis disabled: %s", e)
+    r = None

@@ -1,35 +1,55 @@
-from fastapi import APIRouter, HTTPException, Depends
-from app.modules.auth.auth_service import AuthService
-from app.modules.organization.organization_service import OrganizationService
-from app.modules.auth.auth_dto import SignInDto, SignUpDto
+# app/modules/auth/auth_router.py
+
+from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi.responses import JSONResponse
+
 from app.core.security import decode_token
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from app.modules.auth.auth_dto import SignInDto, SignUpDto
+from app.modules.auth.auth_service import AuthService
 
+auth_router = APIRouter(prefix="/auth", tags=["auth"])
 service = AuthService()
-org_service = OrganizationService()
-auth_router = APIRouter(prefix="/auth", tags=["Auth"])
 
-@auth_router.post('/sign-in')
+def _extract_token_from_request(request: Request) -> str:
+    auth_value = request.headers.get("Authorization")
+    if not auth_value:
+        raise HTTPException(status_code=401, detail="Missing Authorization header")
+
+    val = auth_value.strip()
+    if val.lower().startswith("bearer "):
+        val = val[7:].strip()
+    if not val:
+        raise HTTPException(status_code=401, detail="Empty token")
+    return val
+
+
+def any_user_guard(request: Request):
+    token = _extract_token_from_request(request)
+    user = decode_token(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    return user
+
+
+def admin_guard(user: dict = Depends(any_user_guard)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    return user
+
+# --- routes ---
+@auth_router.post("/sign-in")
 def sign_in(data: SignInDto):
-  return service.sign_in(data)
+    result = service.sign_in(data)
+    resp = JSONResponse(content=result)
+    resp.headers["Authorization"] = f"Bearer {result['access_token']}"
+    return resp
 
-@auth_router.post('/sign-up')
-def sign_up(data: SignUpDto):
-  return service.sign_up(data)
 
-security = HTTPBearer()
+@auth_router.post("/sign-up")
+def sign_up(data: SignUpDto, _=Depends(admin_guard)):
+    return service.sign_up(data)
 
-def organization_guard(credentials: HTTPAuthorizationCredentials = Depends(security)):
-  token = credentials.credentials
-  user = decode_token(token)
-  if not user:
-    raise HTTPException(status_code=401)
-  return user
 
-@auth_router.get('/me')
-def me(user: dict = Depends(organization_guard)):
-  return user
-
-@auth_router.get('/captcha')
-def get_captcha():
-  return service.get_captcha()
+@auth_router.get("/me")
+def me(user: dict = Depends(any_user_guard)):
+    return user
