@@ -1,32 +1,35 @@
-# seeds/seed_users.py
-import os
-import uuid
+# app/seeds/seed_users.py
+import os, uuid, bcrypt
 from datetime import datetime, timezone
-
 from sqlalchemy import create_engine, text
-import bcrypt
 
-# DATABASE_URL должен быть вида: postgresql+psycopg://user:pass@host:5432/dbname
-DATABASE_URL = os.environ.get("DATABASE_URL")
-if not DATABASE_URL:
-    raise SystemExit("DATABASE_URL is not set")
+def db_url() -> str:
+    url = os.getenv("DATABASE_URL")
+    if url:
+        return url
+    u = os.getenv("POSTGRES_USER")
+    p = os.getenv("POSTGRES_PASSWORD")
+    d = os.getenv("POSTGRES_DB")
+    h = os.getenv("POSTGRES_HOST", "bus-db")
+    port = os.getenv("POSTGRES_PORT", "5432")
+    if not (u and p and d):
+        raise SystemExit("DATABASE_URL is not set and POSTGRES_* are missing")
+    return f"postgresql+psycopg2://{u}:{p}@{h}:{port}/{d}"
 
-# Пароли можно переопределить через ENV
-ADMIN_PASS = os.environ.get("ADMIN_PASS", "Admin#12345")
-USER_PASS  = os.environ.get("USER_PASS",  "User#12345")
+ADMIN_PASS = os.getenv("ADMIN_PASS", "Admin#12345")
+USER_PASS  = os.getenv("USER_PASS",  "User#12345")
 
 ADMIN = {
     "id": str(uuid.uuid4()),
-    "full_name": "Admin User",
-    "phone": "+77010000001",
+    "fullname": "Admin User",
+    "phone": "+77410000001",
     "password": ADMIN_PASS,
     "role": "admin",
 }
-
 USER = {
     "id": str(uuid.uuid4()),
-    "full_name": "Regular User",
-    "phone": "+77010000002",
+    "fullname": "Regular User",
+    "phone": "+77410000002",
     "password": USER_PASS,
     "role": "user",
 }
@@ -34,48 +37,33 @@ USER = {
 def hash_pw(p: str) -> str:
     return bcrypt.hashpw(p.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
-def upsert_user(conn, u):
-    now = datetime.now(timezone.utc)
+UPSERT_SQL = text("""
+    INSERT INTO users (id, fullname, phone, password, role, created_at, updated_at)
+    VALUES (:id, :fullname, :phone, :password, :role, NOW(), NOW())
+    ON CONFLICT (phone) DO UPDATE
+    SET fullname   = EXCLUDED.fullname,
+        password   = EXCLUDED.password,
+        role       = EXCLUDED.role,
+        updated_at = NOW()
+""")
+
+def upsert_user(conn, u: dict):
     params = {
         "id": u["id"],
-        "full_name": u["full_name"],
+        "fullname": u["fullname"],
         "phone": u["phone"],
-        "password_hash": hash_pw(u["password"]),
+        "password": hash_pw(u["password"]),
         "role": u["role"],
-        "created_at": now,
     }
-
-    # Если у тебя в users уникальный индекс по phone (рекомендуется),
-    # это upsert сработает. Если нет — см. комментарий ниже.
-    sql = text("""
-    INSERT INTO users (id, full_name, phone, password_hash, role, is_active, created_at)
-    VALUES (:id, :full_name, :phone, :password_hash, :role, TRUE, :created_at)
-    ON CONFLICT (phone) DO UPDATE
-    SET full_name = EXCLUDED.full_name,
-        password_hash = EXCLUDED.password_hash,
-        role = EXCLUDED.role,
-        is_active = TRUE
-    """)
-    conn.execute(sql, params)
-
-def ensure_table_exists(conn):
-    q = text("""
-        SELECT 1
-        FROM information_schema.tables
-        WHERE table_schema = 'public' AND table_name = 'users'
-    """)
-    if conn.execute(q).scalar() != 1:
-        raise RuntimeError("Table 'users' not found. Run migrations first.")
+    conn.execute(UPSERT_SQL, params)
 
 def main():
-    engine = create_engine(DATABASE_URL, future=True)
+    engine = create_engine(db_url(), future=True)
     with engine.begin() as conn:
-        ensure_table_exists(conn)
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ux_users_phone ON users (phone)"))
         upsert_user(conn, ADMIN)
         upsert_user(conn, USER)
-    print("Seeded: admin + user")
-    print(f"Admin phone: {ADMIN['phone']}  password: {ADMIN_PASS}")
-    print(f"User  phone: {USER['phone']}   password: {USER_PASS}")
+    print("✅ Users seeded")
 
 if __name__ == "__main__":
     main()

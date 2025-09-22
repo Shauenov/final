@@ -17,13 +17,11 @@ with Session(engine) as s:
             ext = os.path.splitext(old)[1] or ".mp4"
             new = f"videos/{v.id}/source{ext}"
 
-            # копия в новый ключ
             s3.copy_object(
                 Bucket=BUCKET,
                 CopySource={"Bucket": BUCKET, "Key": old},
                 Key=new
             )
-            # удалить старый
             s3.delete_object(Bucket=BUCKET, Key=old)
 
             v.video = new

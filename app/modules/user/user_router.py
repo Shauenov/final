@@ -35,7 +35,6 @@ def create_user(
     data: CreateUser = Body(...),
     _=Depends(any_user_guard)
 ):
-    # админ-контроль можно сделать здесь (запрет на создание без admin-ролей)
     return service.create_user(data)
 
 @user_router.delete("/{id}", response_model=UserPublic)

@@ -5,7 +5,7 @@ from boto3.s3.transfer import TransferConfig
 from urllib.parse import urlparse, urlunparse
 
 S3_ENDPOINT = os.getenv("S3_ENDPOINT") or os.getenv("AWS_S3_ENDPOINT_URL")
-S3_PUBLIC_URL = os.getenv("S3_PUBLIC_URL")  # <-- добавили
+S3_PUBLIC_URL = os.getenv("S3_PUBLIC_URL")  
 S3_REGION   = os.getenv("S3_REGION", "us-east-1")
 S3_KEY      = os.getenv("S3_ACCESS_KEY") or os.getenv("AWS_ACCESS_KEY_ID")
 S3_SECRET   = os.getenv("S3_SECRET_KEY") or os.getenv("AWS_SECRET_ACCESS_KEY")
@@ -15,7 +15,7 @@ session = boto3.session.Session()
 s3 = session.client(
     "s3",
     region_name=S3_REGION,
-    endpoint_url=S3_ENDPOINT,                    # внутренний адрес для SDK
+    endpoint_url=S3_ENDPOINT,                   
     aws_access_key_id=S3_KEY,
     aws_secret_access_key=S3_SECRET,
     config=Config(s3={"addressing_style": "path"})
@@ -42,7 +42,6 @@ def presign_get(key: str, expires=3600) -> str:
     url = s3.generate_presigned_url(
         "get_object", Params={"Bucket": S3_BUCKET, "Key": key}, ExpiresIn=expires
     )
-    # Переписываем хост/схему на публичные (для браузера)
     if S3_PUBLIC_URL:
         u = urlparse(url)
         p = urlparse(S3_PUBLIC_URL)

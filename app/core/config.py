@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     JWT_SECRET: str
     JWT_REFRESH_SECRET: str
 
-    # Redis (не обязателен)
+    # Redis 
     REDIS_HOST: Optional[str] = None
     REDIS_PORT: Optional[int] = None
     REDIS_PASSWORD: Optional[str] = None
@@ -44,15 +44,14 @@ class Settings(BaseSettings):
     AWS_SECRET_ACCESS_KEY: str
     AWS_S3_ENDPOINT_URL: str            # http(s)://host:port
     AWS_S3_BUCKET_NAME: str
-    AWS_S3_SECURE: Optional[bool] = None  # если не указан — выводим из схемы URL
+    AWS_S3_SECURE: Optional[bool] = None  
 
-    # Логи/метрики (опционально)
+
     ENABLE_METRICS: bool = False
     ENABLE_LOKI: bool = False
     LOKI_URL: Optional[str] = None
     LOG_LEVEL: str = "INFO"
 
-    # Пул БД (опционально)
     DB_POOL_SIZE: int = 5
     DB_MAX_OVERFLOW: int = 10
 

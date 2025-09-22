@@ -16,6 +16,5 @@ def get_session() -> Generator[Session, None, None]:
         yield session
 
 def create_db_and_tables():
-    # использовать только на локалке, в проде — alembic
     if settings.ENVIRONMENT == "local":
         SQLModel.metadata.create_all(engine)

@@ -10,7 +10,6 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     try:
         return pwd_context.verify(plain_password, hashed_password)
     except Exception:
-        # если в базе пароль был "в чистом виде"
         return plain_password == hashed_password
 
 def get_hashed_password(plain_password: str) -> str:

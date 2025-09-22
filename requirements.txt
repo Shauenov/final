@@ -4,6 +4,8 @@ sqlmodel
 SQLAlchemy
 psycopg[binary]
 alembic
+psycopg2-binary
+
 
 pydantic
 pydantic-settings

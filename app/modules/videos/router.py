@@ -20,6 +20,10 @@ from .enums import VideoStatus
 from app.models import Video
 from .schemas import VideoCreate, VideoUpdate, VideoOut
 
+from fastapi import Depends
+from app.modules.auth.auth_router import admin_guard
+
+
 router = APIRouter(prefix="/videos", tags=["videos"])
 
 
@@ -47,6 +51,7 @@ async def create_video(
     preview: UploadFile = File(..., description="preview image"),
     file: UploadFile = File(..., description="video file"),
     session: Session = Depends(get_session),
+    _=Depends(admin_guard),
 ):
     if not (file.content_type or "").startswith("video/"):
         raise HTTPException(400, "file must be a video/*")
@@ -86,6 +91,7 @@ def list_videos(
     limit: int = 50,
     offset: int = 0,
     session: Session = Depends(get_session),
+    _=Depends(admin_guard),
 ):
     stmt = select(Video).where(Video.deleted_at.is_(None))
     if status:
@@ -104,6 +110,7 @@ async def patch_video(
     description: str = Form(""),
     status: Optional[VideoStatus] = Form(None, description="Active | Archived"),
     session: Session = Depends(get_session),
+    _=Depends(admin_guard),
 ):
     item = ensure_exists(session, vid)
 
@@ -126,6 +133,7 @@ async def replace_video_file(
     vid: str,
     file: UploadFile = File(...),
     session: Session = Depends(get_session),
+    _=Depends(admin_guard),
 ):
     if not (file.content_type or "").startswith("video/"):
         raise HTTPException(400, "file must be a video/*")
@@ -162,7 +170,7 @@ async def replace_video_file(
 
 
 @router.post("/{vid}/archive", response_model=VideoOut)
-def archive_video(vid: str, session: Session = Depends(get_session)):
+def archive_video(vid: str, session: Session = Depends(get_session), _=Depends(admin_guard),):
     item = ensure_exists(session, vid)
     item.status = VideoStatus.ARCHIVED
     item.updated_at = datetime.utcnow()
@@ -173,7 +181,7 @@ def archive_video(vid: str, session: Session = Depends(get_session)):
 
 
 @router.post("/{vid}/restore", response_model=VideoOut)
-def restore_video(vid: str, session: Session = Depends(get_session)):
+def restore_video(vid: str, session: Session = Depends(get_session), _=Depends(admin_guard),):
     item = ensure_exists(session, vid)
     item.status = VideoStatus.ACTIVE
     item.updated_at = datetime.utcnow()
@@ -184,7 +192,7 @@ def restore_video(vid: str, session: Session = Depends(get_session)):
 
 
 @router.delete("/{vid}", response_model=dict)
-def soft_delete_video(vid: str, session: Session = Depends(get_session)):
+def soft_delete_video(vid: str, session: Session = Depends(get_session), _=Depends(admin_guard),):
     item = ensure_exists(session, vid)
     item.deleted_at = datetime.utcnow()
     item.updated_at = item.deleted_at
@@ -194,7 +202,7 @@ def soft_delete_video(vid: str, session: Session = Depends(get_session)):
 
 
 @router.get("/{vid}/play")
-def get_play_links(vid: str, session: Session = Depends(get_session)):
+def get_play_links(vid: str, session: Session = Depends(get_session), _=Depends(admin_guard),):
     item = ensure_exists(session, vid)
 
     # не даём играть архив/удалённые
