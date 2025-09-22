@@ -2,7 +2,7 @@ import enum
 from typing import Optional
 import uuid
 from datetime import datetime, UTC
-from sqlmodel import Column, DateTime, Field, Relationship, SQLModel
+from sqlmodel import Column, DateTime, Field, Relationship, SQLModel, UniqueConstraint
 from app.modules.videos.enums import VideoStatus  # только enum!
 from sqlalchemy.types import Enum as SQLAlchemyEnum
 from datetime import datetime
@@ -67,6 +67,14 @@ class Music(SQLModel, table=True):
   playlist: Playlist | None = Relationship(
     back_populates="musics"
   )
+  genre_id: uuid.UUID | None = Field(
+      default=None,
+      foreign_key="genre.id",
+      nullable=True
+  )
+  genre: Optional["Genre"] = Relationship(
+      back_populates="musics"
+  )
   status: MusicStatus = Field(
       sa_column=Column(SQLAlchemyEnum(MusicStatus, name="music_status_enum"))
   )
@@ -80,3 +88,25 @@ class Music(SQLModel, table=True):
       sa_column=Column(DateTime(timezone=True), default=datetime.now(UTC), onupdate=datetime.now(UTC))
   )
   deleted_at: datetime = Field(default_factory=None, nullable=True)
+
+class GenreType(str, enum.Enum):
+    MUSIC = "music"
+    MOVIE = "movie"
+    BOOK = "book"
+
+class Genre(SQLModel, table=True):
+    __table_args__ = (
+        UniqueConstraint("name", "type", name="uq_genre_name_type"),
+    )
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    name: str = Field(nullable=False, max_length=100)
+    description: Optional[str] = None
+    musics: list["Music"] = Relationship(back_populates="genre")
+    type: GenreType = Field(
+        sa_column=Column(SQLAlchemyEnum(GenreType, name="genre_type_enum"), nullable=False)
+    )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), nullable=False)
+    updated_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), default=datetime.now(UTC), onupdate=datetime.now(UTC))
+    )
+    deleted_at: datetime = Field(default_factory=None, nullable=True)
