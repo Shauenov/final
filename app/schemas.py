@@ -28,4 +28,52 @@ class UserPublic(BaseModel):
         from_attributes = True
 
 
-# VIDEOS SCHEMAS ---------------------------
+class CreatePlaylist(BaseModel):
+  title: str = Field()
+  description: str = Field()
+  preview_img: str = Field()
+
+class UpdatePlaylist(BaseModel):
+  title: Optional[str] = Field(default=None)
+  description: Optional[str] = Field(default=None)
+
+class PlaylistPublic(BaseModel):
+  id: uuid.UUID = Field()
+  title: str = Field()
+  description: str = Field()
+  preview_img: str = Field()
+  musics: list["MusicPublic"] = []
+  created_at: datetime
+  updated_at: datetime
+  deleted_at: datetime | None = Field(nullable=True)
+
+  class Config:
+      from_attributes = True
+
+class CreateMusic(BaseModel):
+  title: str = Field()
+  playlist_id: str = Field()
+  description: str = Field()
+  preview_img: str = Field()
+  music_url: str = Field()
+  duration: int = Field()
+
+
+class UpdateMusic(BaseModel):
+  title: Optional[str] = Field(default=None)
+  description: Optional[str] = Field(default=None)
+  music_url: Optional[str] = Field(default=None)
+
+class MusicPublic(BaseModel):
+  id: uuid.UUID = Field()
+  title: str = Field()
+  description: str = Field()
+  preview_img: str = Field()
+  music_url: str = Field()
+  duration: int = Field()
+  created_at: datetime
+  updated_at: datetime
+  deleted_at: datetime | None = Field(nullable=True)
+
+  class Config:
+      from_attributes = True
