@@ -18,6 +18,11 @@ minio
 requests
 python-dotenv
 
+boto3
+botocore
+python-dotenv
+
+
 
 
 # Кеш/очереди (по желанию)
