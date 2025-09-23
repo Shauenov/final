@@ -7,6 +7,7 @@ from app.core.config import settings
 
 class MinioService:
     def __init__(self):
+        # если endpoint начинается с https:// — включим secure=True
         endpoint = settings.AWS_S3_ENDPOINT_URL.replace("https://", "").replace("http://", "")
         secure = settings.AWS_S3_ENDPOINT_URL.startswith("https://") or getattr(settings, "AWS_S3_SECURE", False)
 
@@ -38,6 +39,7 @@ class MinioService:
             raise
 
     def upload_file(self, object_name: str, src_path: str, bucket: str, content_type: Optional[str] = None) -> str:
+        """Загружает локальный файл в MinIO. Возвращает ключ вида '{bucket}/{object_name}'."""
         try:
             self.ensure_bucket(bucket, public_read=False)
             self.client.fput_object(
@@ -47,7 +49,7 @@ class MinioService:
                 content_type=content_type,
             )
             logger.info("uploaded %s to s3://%s/%s", src_path, bucket, object_name)
-            return f"{bucket}/{object_name}"
+            return f"{settings.AWS_S3_PUBLIC_URL}/{bucket}/{object_name}"
         except S3Error as e:
             logger.error("upload_file error: %s", e)
             raise
@@ -60,6 +62,7 @@ class MinioService:
             raise
 
     def presign_get(self, object_name: str, bucket: str, expires_seconds: int = 3600) -> str:
+        """Выдаёт временную ссылку на скачивание (рекомендуется вместо public-policy)."""
         try:
             return self.client.presigned_get_object(bucket, object_name, expires=expires_seconds)
         except S3Error as e:
