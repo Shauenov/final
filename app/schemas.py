@@ -3,7 +3,7 @@ from datetime import datetime
 import uuid
 from typing import Optional
 from pydantic import BaseModel, Field
-from app.models import GenreType
+from app.models import AdStatus, GenreType
 from app.modules.videos.enums import VideoStatus  # импорт ТОЛЬКО enum
 
 PHONE_RE = r"^\+7\d{10}$"
@@ -108,3 +108,24 @@ class GenrePublic(BaseModel):
 
     class Config:
         from_attributes = True
+
+class CreateAd(BaseModel):
+  title: str = Field()
+
+class UpdateAd(BaseModel):
+  title: Optional[str] = Field(default=None)
+  status: Optional[AdStatus] = Field(default=None)
+  video_url: Optional[str] = Field(default=None)
+
+class AdPublic(BaseModel):
+  id: uuid.UUID = Field()
+  title: str = Field()
+  video_url: str = Field()
+  status: AdStatus = Field()
+  created_at: datetime = Field()
+  updated_at: datetime = Field()
+  deleted_at: Optional[datetime] = Field()
+
+  class Config:
+    from_attributes = True
+
