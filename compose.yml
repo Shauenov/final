@@ -20,8 +20,8 @@ services:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-minioadmin123}
+      MINIO_ROOT_USER: ${AWS_ACCESS_KEY_ID:-user}
+      MINIO_ROOT_PASSWORD: ${AWS_SECRET_ACCESS_KEY:-password}
     ports: ["9000:9000","9001:9001"]
     volumes: [bus_s3_storage:/data]
     networks: [bus-network]
@@ -39,9 +39,9 @@ services:
     networks: [bus-network]
     entrypoint: >
       sh -c "
-      mc alias set local http://bus-minio:9000 ${S3_ACCESS_KEY:-minioadmin} ${S3_SECRET_KEY:-minioadmin123} &&
-      mc mb -p local/${S3_BUCKET:-nature} || true &&
-      mc anonymous set download local/${S3_BUCKET:-nature} || true
+      mc alias set local http://bus-minio:9000 ${AWS_ACCESS_KEY_ID:-user} ${AWS_SECRET_ACCESS_KEY:-password} &&
+      mc mb -p local/${AWS_S3_BUCKET_NAME:-bus_storage} || true &&
+      mc anonymous set download local/${AWS_S3_BUCKET_NAME:-bus_storage} || true
       "
 
   bus-redis:
@@ -65,13 +65,13 @@ services:
       context: .
     env_file: .env
     environment:
-      # гарантированно верный endpoint внутри сети compose
-      S3_ENDPOINT: ${S3_ENDPOINT:-http://bus-minio:9000}
-      # если у тебя где-то в коде читаются AWS_* — продублируем
-      AWS_S3_ENDPOINT_URL: ${S3_ENDPOINT:-http://bus-minio:9000}
-      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY:-minioadmin}
-      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:-minioadmin123}
-      AWS_S3_BUCKET_NAME: ${S3_BUCKET:-nature}
+      # если нужен бэкап для старого кода — оставь S3_ENDPOINT, иначе можно удалить
+      # S3_ENDPOINT: ${S3_ENDPOINT:-http://bus-minio:9000}
+      AWS_S3_ENDPOINT_URL: ${AWS_S3_ENDPOINT_URL:-http://bus-minio:9000}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-user}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-password}
+      AWS_S3_BUCKET_NAME: ${AWS_S3_BUCKET_NAME:-bus_storage}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
     depends_on:
       bus-db:
         condition: service_healthy

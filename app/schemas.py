@@ -100,3 +100,39 @@ class VideoOut(BaseModel):
     updated_at: datetime
     deleted_at: Optional[datetime] = None
 
+
+# Books schemas
+
+class BookCreate(BaseModel):
+    title: str = Field(min_length=1)
+    author: str = Field(min_length=1)
+    description: str
+    genre: Optional[str] = None
+    published_year: Optional[int] = Field(default=None, ge=0, le=2100)
+
+
+class BookUpdate(BaseModel):
+    title: Optional[str] = None
+    author: Optional[str] = None
+    description: Optional[str] = None
+    genre: Optional[str] = None
+    published_year: Optional[int] = Field(default=None, ge=0, le=2100)
+    # file_url / cover_url меняются отдельными эндпоинтами через UploadFile
+
+
+class BookOut(BaseModel):
+    id: uuid.UUID
+    title: str
+    author: str
+    description: str
+    genre: Optional[str]
+    file_url: str
+    cover_url: Optional[str]
+    published_year: Optional[int]
+    created_by: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+    deleted_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True  # для валидации из ORM-модели SQLModel

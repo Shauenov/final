@@ -20,7 +20,9 @@ def _guess_ct(name: str, fallback: str = "application/octet-stream") -> str:
 
 
 def _bucket() -> str:
-    return getattr(settings, "AWS_S3_BUCKET_NAME", None) or os.getenv("S3_BUCKET") or "nature"
+    if not getattr(settings, "AWS_S3_BUCKET_NAME", None):
+        raise RuntimeError("AWS_S3_BUCKET_NAME is not set")
+    return settings.AWS_S3_BUCKET_NAME
 
 
 def _put_stream(s3: MinioService, bucket: str, key: str, fileobj: BinaryIO, content_type: str):

@@ -1,13 +1,12 @@
 import enum
 from typing import Optional
 import uuid
-from datetime import datetime, UTC
+from datetime import datetime, UTC, timezone
 from sqlmodel import Column, DateTime, Field, Relationship, SQLModel
 from sqlalchemy.types import Enum as SQLAlchemyEnum
 from datetime import datetime
 from enum import Enum
 from typing import Optional
-from sqlmodel import SQLModel, Field
 
 
 # ── Users (по ТЗ: Bearer, телефон+пароль; роли) ───────────────────────────────
@@ -79,3 +78,41 @@ class Music(SQLModel, table=True):
       sa_column=Column(DateTime(timezone=True), default=datetime.now(UTC), onupdate=datetime.now(UTC))
   )
   deleted_at: datetime = Field(default_factory=None, nullable=True)
+
+
+# Book models
+
+class Book(SQLModel, table=True):
+    __tablename__ = "books"
+
+    id: uuid.UUID = Field(
+        default_factory=uuid.uuid4,
+        primary_key=True,
+        index=True,
+        nullable=False,
+    )
+
+    # core fields
+    title: str = Field(min_length=1, index=True, nullable=False)
+    author: str = Field(min_length=1, index=True, nullable=False)
+    description: str = Field(nullable=False)
+    genre: Optional[str] = Field(default=None, index=True)
+
+    # storage links
+    file_url: str = Field(nullable=False)
+    cover_url: Optional[str] = Field(default=None)
+
+    # meta
+    published_year: Optional[int] = Field(default=None, ge=0, le=2100)
+
+    # audit
+    created_by: uuid.UUID = Field(foreign_key="users.id", index=True, nullable=False)
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+    deleted_at: Optional[datetime] = Field(default=None, nullable=True)

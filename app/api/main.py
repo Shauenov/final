@@ -7,7 +7,7 @@ from app.modules.user.user_router import user_router
 from app.modules.music.music_router import music_router
 from app.modules.playlist.playlist_router import playlist_router
 from app.modules.videos.video_router import router as video_router
-# from app.modules.books.books_router import books_router
+from app.modules.books.book_router import router as book_router
 # from app.modules.stats.stats_router import stats_router
 
 api_router = APIRouter()
@@ -20,5 +20,5 @@ api_router.include_router(music_router, prefix="/music", tags=["Music"])
 api_router.include_router(playlist_router, prefix="/playlist", tags=["Playlist"])
 api_router.include_router(video_router)
 # api_router.include_router(playlist_router, prefix="/playlist", tags=["playlist"])
-# api_router.include_router(books_router, prefix="/books", tags=["books"])
+api_router.include_router(book_router)
 # api_router.include_router(stats_router, prefix="/stats", tags=["stats"])
