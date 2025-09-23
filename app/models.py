@@ -5,10 +5,7 @@ from datetime import datetime, UTC
 from sqlmodel import Column, DateTime, Field, Relationship, SQLModel, UniqueConstraint
 from app.modules.videos.enums import VideoStatus  # только enum!
 from sqlalchemy.types import Enum as SQLAlchemyEnum
-from datetime import datetime
 from enum import Enum
-from typing import Optional
-from sqlmodel import SQLModel, Field
 
 
 # ── Users (по ТЗ: Bearer, телефон+пароль; роли) ───────────────────────────────
@@ -110,3 +107,38 @@ class Genre(SQLModel, table=True):
         sa_column=Column(DateTime(timezone=True), default=datetime.now(UTC), onupdate=datetime.now(UTC))
     )
     deleted_at: datetime = Field(default_factory=None, nullable=True)
+
+
+
+class AdStatus(enum.Enum):
+  ACTIVE="active"
+  PROCESSING="processing"
+  FAILED="failed"
+
+class Ad(SQLModel, table=True):
+  id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+  title: str = Field()
+  video_url: str = Field()
+  statistics: list["Statistics"] = Relationship(back_populates="ad", cascade_delete=True)
+  status: AdStatus = Field(
+      sa_column=Column(SQLAlchemyEnum(AdStatus, name="ad_status_enum"))
+  )
+  created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), nullable=False)
+  updated_at: datetime = Field(
+      sa_column=Column(DateTime(timezone=True), default=datetime.now(UTC), onupdate=datetime.now(UTC))
+  )
+  deleted_at: datetime = Field(default_factory=None, nullable=True)
+
+class Statistics(SQLModel, table=True):
+  id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+  device_id: uuid.UUID = Field()
+  ad_id: uuid.UUID = Field(
+    foreign_key="ad.id", nullable=False, ondelete="CASCADE"
+  )
+  ad: Ad = Relationship(
+    back_populates="statistics"
+  )
+  watched_full: bool = Field(default=False)
+  created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), nullable=False)
+
+

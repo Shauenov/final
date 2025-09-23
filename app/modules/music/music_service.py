@@ -6,6 +6,7 @@ import uuid
 from fastapi import HTTPException, UploadFile, BackgroundTasks
 from app.models import MusicStatus
 from app.core.logger import logger
+from app.modules.genre.genre_service import GenreService
 from app.schemas import CreateMusic, UpdateMusic, MusicPublic
 from app.modules.music.music_repository import MusicRepository
 from app.modules.playlist.playlist_service import PlaylistService
@@ -19,7 +20,7 @@ class MusicService():
         self.repo = MusicRepository()
         self.transcoder = TranscoderService()
         self.playlistService = PlaylistService()
-
+        self.genreService = GenreService()
 
     def transcodeMusic(self, music_id, input_path: str, output_path: str):
         status = self.transcoder.transcodeToHls(input_path, output_path)
@@ -45,7 +46,7 @@ class MusicService():
 
             genre = None
             if genre_id:
-                genre = self.genreService.findById(genre_id)
+                genre = self.genreService.get_by_id(genre_id)
                 if not genre:
                     raise HTTPException(status_code=400, detail="Genre not found")
 

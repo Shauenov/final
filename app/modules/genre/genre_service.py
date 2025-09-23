@@ -1,6 +1,5 @@
 import uuid
 from typing import Optional, List
-from sqlmodel import Session
 
 from app.models import GenreType
 from app.modules.genre.genre_repository import GenreRepository

@@ -1,9 +1,7 @@
-from fastapi import APIRouter, Depends, Query
-from sqlmodel import Session
+from fastapi import APIRouter, Query
 from typing import Optional, List
 import uuid
 
-from app.core.db import get_session
 from app.models import GenreType
 from app.schemas import GenrePublic, GenreCreate, GenreUpdate
 from app.modules.genre.genre_service import GenreService

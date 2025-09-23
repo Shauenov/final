@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, UTC
 from sqlmodel import Session, select
 from app.models import Genre
 from app.core.db import engine
@@ -33,9 +33,9 @@ class GenreRepository():
         skip: int | None = None,
         limit: int | None = None,
         q: str | None = None,
-        type: str | None = None,           # <-- фильтр по GenreType
-        sort_by: str = "created_at",       # <-- поле сортировки
-        order: str = "asc",                # <-- направление сортировки
+        type: str | None = None,
+        sort_by: str = "created_at",
+        order: str = "asc",
     ) -> list[GenrePublic]:
       with Session(engine) as session:
         stmt = select(Genre).where(Genre.deleted_at == None)
@@ -89,7 +89,7 @@ class GenreRepository():
             if not result:
                 return None
 
-            result.deleted_at = datetime.utcnow()
+            result.deleted_at = datetime.now(UTC)
             session.add(result)
             session.commit()
             session.refresh(result)
