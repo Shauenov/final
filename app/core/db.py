@@ -8,7 +8,7 @@ engine = create_engine(
     pool_pre_ping=True,
     pool_size=getattr(settings, "DB_POOL_SIZE", 5),
     max_overflow=getattr(settings, "DB_MAX_OVERFLOW", 10),
-    echo=(settings.ENVIRONMENT == "local"),
+    # echo=(settings.ENVIRONMENT == "local"),
 )
 
 def get_session() -> Generator[Session, None, None]:

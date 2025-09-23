@@ -20,10 +20,10 @@ class AdService():
         self.repo = AdRepository()
         self.transcoder = TranscoderService()
 
-    def transcodeAd(self, ad_id, input_path: str, output_path: str):
+    def transcodeAd(self, ad_id, input_path: str, output_path: str, title: str):
         status = self.transcoder.transcodeToHls(input_path, output_path)
         if status:
-            self.updateById(ad_id, UpdateAd(status=AdStatus.ACTIVE, video_url=output_path))
+            self.updateById(ad_id, UpdateAd(status=AdStatus.ACTIVE, video_url=f"{settings.AWS_S3_PUBLIC_URL}/hls/{title}.m3u8"))
         else:
             self.updateById(ad_id, UpdateAd(status=AdStatus.FAILED))
 
@@ -46,7 +46,7 @@ class AdService():
                 )
             )
 
-            background_tasks.add_task(self.transcodeAd, ad_obj.id, tmp_path, f"assets/transcodings/{data.title}.m3u8")
+            background_tasks.add_task(self.transcodeAd, ad_obj.id, tmp_path, f"assets/transcodings/{data.title}.m3u8", data.title)
 
             return ad_obj
         except HTTPException as e:

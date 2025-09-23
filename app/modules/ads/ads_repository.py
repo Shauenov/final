@@ -1,5 +1,5 @@
 from datetime import datetime, UTC
-from app.models import Ad, AdStatus
+from app.models import Ad
 from app.core.db import engine
 from sqlmodel import Session, desc, select
 from app.schemas import AdPublic, UpdateAd
@@ -28,7 +28,7 @@ class AdRepository():
         q: str | None = None
     ) -> list[AdPublic]:
         with Session(engine) as session:
-            stmt = select(Ad).where(Ad.status == AdStatus.ACTIVE, Ad.deleted_at == None)
+            stmt = select(Ad).where(Ad.deleted_at == None)
 
             if q:
                 stmt = stmt.where(
