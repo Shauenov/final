@@ -1,5 +1,9 @@
 import json
+import mimetypes
+import os
+import tempfile
 from typing import Optional
+from fastapi import UploadFile
 from minio import Minio
 from minio.error import S3Error
 from app.core.logger import logger
@@ -68,3 +72,32 @@ class MinioService:
         except S3Error as e:
             logger.error("presign_get error: %s", e)
             raise
+
+    def upload_uploadfile(
+        self,
+        object_name: str,
+        file: UploadFile,
+        bucket: str,
+        content_type: Optional[str] = None,
+    ) -> str:
+        """
+        Принимает UploadFile, сохраняет во временный файл и загружает в MinIO.
+        Возвращает публичный URL (как и upload_file).
+        """
+        # выберем content-type максимально аккуратно
+        ctype = content_type or file.content_type or mimetypes.guess_type(file.filename or "")[0] or "application/octet-stream"
+
+        # читаем буфер и пишем во временный файл
+        with tempfile.NamedTemporaryFile(delete=False) as tmp:
+            # важно: используем file.file.read(), чтобы не путаться с async/await
+            data = file.file.read()
+            tmp.write(data)
+            tmp_path = tmp.name
+
+        try:
+            return self.upload_file(object_name, tmp_path, bucket, content_type=ctype)
+        finally:
+            try:
+                os.remove(tmp_path)
+            except Exception:
+                pass
