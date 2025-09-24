@@ -120,30 +120,6 @@ class BookService:
             setattr(book, k, v)
         return self.repo.save(book)
 
-    # REPLACE FILES
-    def replace_file(self, book_id: uuid.UUID, file: UploadFile) -> Book:
-        ct = (file.content_type or "").lower()
-        if ct not in ALLOWED_BOOK_MIMES and _ext_for_book(file) not in {".pdf", ".epub"}:
-            raise HTTPException(400, "file must be PDF or EPUB")
-
-        book = self._ensure(book_id)
-        ext = _ext_for_book(file)
-        obj = f"books/{book_id}/file{ext}"
-        url = self.minio.upload_uploadfile(obj, file, self.bucket)
-        book.file_url = url
-        return self.repo.save(book)
-
-    def replace_cover(self, book_id: uuid.UUID, cover: UploadFile) -> Book:
-        if not (cover.content_type or "").lower().startswith(ALLOWED_COVER_PREFIX):
-            raise HTTPException(400, "cover must be an image/*")
-
-        book = self._ensure(book_id)
-        ext = _ext_for_cover(cover)
-        obj = f"books/{book_id}/cover{ext}"
-        url = self.minio.upload_uploadfile(obj, cover, self.bucket)
-        book.cover_url = url
-        return self.repo.save(book)
-
     # SOFT DELETE
     def soft_delete(self, book_id: uuid.UUID) -> dict:
         book = self._ensure(book_id)

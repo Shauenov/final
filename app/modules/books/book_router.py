@@ -74,25 +74,6 @@ def update_book_meta(
     return service.update_meta(book_id, patch)
 
 
-@router.post("/{book_id}/replace-file", response_model=BookOut, dependencies=[Depends(admin_guard)])
-def replace_book_file(
-    book_id: uuid.UUID,
-    file: UploadFile = File(..., description="PDF/EPUB"),
-    session: Session = Depends(get_session),
-):
-    service = BookService(session)
-    return service.replace_file(book_id, file)
-
-
-@router.post("/{book_id}/replace-cover", response_model=BookOut, dependencies=[Depends(admin_guard)])
-def replace_book_cover(
-    book_id: uuid.UUID,
-    cover: UploadFile = File(..., description="image/*"),
-    session: Session = Depends(get_session),
-):
-    service = BookService(session)
-    return service.replace_cover(book_id, cover)
-
 
 @router.delete("/{book_id}", response_model=dict, dependencies=[Depends(admin_guard)])
 def delete_book(
