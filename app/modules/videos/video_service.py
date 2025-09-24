@@ -59,6 +59,10 @@ class VideoService:
         if not v or v.deleted_at:
             raise HTTPException(404, "Video not found")
         return v
+    
+    def get(self, vid: str) -> Video:
+        """Вернуть видео (404 если нет/удалено)."""
+        return self._ensure(vid)
 
     # --- use cases ---
     def create(

@@ -1,7 +1,6 @@
+# app/modules/videos/video_router.py
 from __future__ import annotations
-
 from typing import List, Optional
-
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from sqlmodel import Session
 
@@ -14,10 +13,8 @@ from app.schemas import VideoOut
 
 router = APIRouter(prefix="/videos", tags=["videos"])
 
-
 def svc(session: Session = Depends(get_session)) -> VideoService:
     return VideoService(session)
-
 
 @router.post("", response_model=VideoOut, dependencies=[Depends(admin_guard)])
 async def create_video(
@@ -31,7 +28,6 @@ async def create_video(
         raise HTTPException(400, "file must be a video/*")
     if not is_image_stream(preview.file, preview.content_type):
         raise HTTPException(400, "preview must be a real image (jpg/png/webp/gif)")
-
     return service.create(
         title=title,
         description=description,
@@ -43,7 +39,6 @@ async def create_video(
         video_ct=file.content_type,
     )
 
-
 @router.get("", response_model=List[VideoOut], dependencies=[Depends(admin_guard)])
 def list_videos(
     status: Optional[VideoStatus] = Query(default=None),
@@ -54,6 +49,12 @@ def list_videos(
 ):
     return service.list(status=status, q=q, limit=limit, offset=offset)
 
+@router.get("/{vid}", response_model=VideoOut, dependencies=[Depends(admin_guard)])
+def get_video(
+    vid: str,
+    service: VideoService = Depends(svc),
+):
+    return service.get(vid)
 
 @router.patch("/{vid}", response_model=VideoOut, dependencies=[Depends(admin_guard)])
 async def patch_video(
@@ -65,33 +66,14 @@ async def patch_video(
 ):
     return service.patch(vid, title=title, description=description, status=status)
 
-
-@router.post("/{vid}/replace-file", response_model=VideoOut, dependencies=[Depends(admin_guard)])
-async def replace_video_file(
-    vid: str,
-    file: UploadFile = File(...),
-    service: VideoService = Depends(svc),
-):
-    if not (file.content_type or "").startswith("video/"):
-        raise HTTPException(400, "file must be a video/*")
-    return service.replace_file(vid, fileobj=file.file, filename=file.filename or "video.mp4", content_type=file.content_type)
-
-
 @router.post("/{vid}/archive", response_model=VideoOut, dependencies=[Depends(admin_guard)])
 def archive_video(vid: str, service: VideoService = Depends(svc)):
     return service.archive(vid)
-
 
 @router.post("/{vid}/restore", response_model=VideoOut, dependencies=[Depends(admin_guard)])
 def restore_video(vid: str, service: VideoService = Depends(svc)):
     return service.restore(vid)
 
-
 @router.delete("/{vid}", response_model=dict, dependencies=[Depends(admin_guard)])
 def soft_delete_video(vid: str, service: VideoService = Depends(svc)):
     return service.soft_delete(vid)
-
-
-@router.get("/{vid}/play", dependencies=[Depends(admin_guard)])
-def get_play_links(vid: str, service: VideoService = Depends(svc)):
-    return service.play_links(vid)
