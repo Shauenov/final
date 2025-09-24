@@ -1,12 +1,17 @@
-# app/schemas.py (только блок users)
+# app/schemas.py
+from __future__ import annotations
+
 from datetime import datetime
 import uuid
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel, Field
-from app.modules.videos.video_repository import VideoStatus  # импорт ТОЛЬКО enum
+
+# единственный источник enum'ов
+from app.models import VideoStatus, AdStatus, GenreType
 
 PHONE_RE = r"^\+7\d{10}$"
 
+# ───────────────────────── Users ─────────────────────────
 class CreateUser(BaseModel):
     fullname: str = Field(min_length=2)
     phone: str = Field(pattern=PHONE_RE)
@@ -24,63 +29,100 @@ class UserPublic(BaseModel):
     fullname: str
     phone: str
     role: str
+
     class Config:
         from_attributes = True
 
 
+# ───────────────────────── Playlist / Music ─────────────────────────
 class CreatePlaylist(BaseModel):
-  title: str = Field()
-  description: str = Field()
-  preview_img: str = Field()
+    title: str
+    description: str
+    preview_img: str
 
 class UpdatePlaylist(BaseModel):
-  title: Optional[str] = Field(default=None)
-  description: Optional[str] = Field(default=None)
-
-class PlaylistPublic(BaseModel):
-  id: uuid.UUID = Field()
-  title: str = Field()
-  description: str = Field()
-  preview_img: str = Field()
-  musics: list["MusicPublic"] = []
-  created_at: datetime
-  updated_at: datetime
-  deleted_at: datetime | None = Field(nullable=True)
-
-  class Config:
-      from_attributes = True
-
-class CreateMusic(BaseModel):
-  title: str = Field()
-  playlist_id: str = Field()
-  description: str = Field()
-  preview_img: str = Field()
-  music_url: str = Field()
-  duration: int = Field()
-
-
-class UpdateMusic(BaseModel):
-  title: Optional[str] = Field(default=None)
-  description: Optional[str] = Field(default=None)
-  music_url: Optional[str] = Field(default=None)
+    title: Optional[str] = None
+    description: Optional[str] = None
 
 class MusicPublic(BaseModel):
-  id: uuid.UUID = Field()
-  title: str = Field()
-  description: str = Field()
-  preview_img: str = Field()
-  music_url: str = Field()
-  duration: int = Field()
-  created_at: datetime
-  updated_at: datetime
-  deleted_at: datetime | None = Field(nullable=True)
+    id: uuid.UUID
+    title: str
+    description: str
+    preview_img: str
+    music_url: str
+    duration: int
+    genre_id: Optional[uuid.UUID] = None
+    created_at: datetime
+    updated_at: datetime
+    deleted_at: Optional[datetime] = None
 
-  class Config:
-      from_attributes = True
+    class Config:
+        from_attributes = True
+
+class PlaylistPublic(BaseModel):
+    id: uuid.UUID
+    title: str
+    description: str
+    preview_img: str
+    musics: List["MusicPublic"] = []  # форвард-реф
+    created_at: datetime
+    updated_at: datetime
+    deleted_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
 
 
-# Videos schemas
+# ───────────────────────── Genre ─────────────────────────
+class GenreBase(BaseModel):
+    name: str = Field(max_length=100)
+    description: Optional[str] = None
+    type: GenreType
 
+class GenreCreate(GenreBase):
+    pass
+
+class GenreUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, max_length=100)
+    description: Optional[str] = None
+    type: Optional[GenreType] = None
+
+class GenrePublic(BaseModel):
+    id: uuid.UUID
+    name: str
+    description: Optional[str] = None
+    type: GenreType
+    created_at: datetime
+    updated_at: datetime
+    deleted_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+# ───────────────────────── Ads ─────────────────────────
+class CreateAd(BaseModel):
+    title: str
+
+class UpdateAd(BaseModel):
+    title: Optional[str] = None
+    status: Optional[AdStatus] = None
+    video_url: Optional[str] = None
+
+class AdPublic(BaseModel):
+    id: uuid.UUID
+    title: str
+    video_url: str
+    status: AdStatus
+    created_at: datetime
+    updated_at: datetime
+    deleted_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+# ───────────────────────── Videos ─────────────────────────
 class VideoCreate(BaseModel):
     title: str
     description: str
@@ -100,9 +142,11 @@ class VideoOut(BaseModel):
     updated_at: datetime
     deleted_at: Optional[datetime] = None
 
+    class Config:
+        from_attributes = True
 
-# Books schemas
 
+# ───────────────────────── Books (ТЗ) ─────────────────────────
 class BookCreate(BaseModel):
     title: str = Field(min_length=1)
     author: str = Field(min_length=1)
@@ -110,15 +154,13 @@ class BookCreate(BaseModel):
     genre: Optional[str] = None
     published_year: Optional[int] = Field(default=None, ge=0, le=2100)
 
-
 class BookUpdate(BaseModel):
     title: Optional[str] = None
     author: Optional[str] = None
     description: Optional[str] = None
     genre: Optional[str] = None
     published_year: Optional[int] = Field(default=None, ge=0, le=2100)
-    # file_url / cover_url меняются отдельными эндпоинтами через UploadFile
-
+    # file_url / cover_url меняются отдельными UploadFile-эндпоинтами
 
 class BookOut(BaseModel):
     id: uuid.UUID
@@ -135,4 +177,4 @@ class BookOut(BaseModel):
     deleted_at: Optional[datetime] = None
 
     class Config:
-        from_attributes = True  # для валидации из ORM-модели SQLModel
+        from_attributes = True
