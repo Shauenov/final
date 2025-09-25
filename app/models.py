@@ -37,6 +37,13 @@ class Video(SQLModel, table=True):
     preview_img: str                                 # s3 key
     video: str                                       # s3 key
     status: VideoStatus = Field(default=VideoStatus.ACTIVE)
+
+    # 🔹 связь с жанром
+    genre_id: Optional[uuid.UUID] = Field(
+        default=None, foreign_key="genre.id", nullable=True
+    )
+    genre: Optional["Genre"] = Relationship()
+
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     deleted_at: Optional[datetime] = Field(default=None)

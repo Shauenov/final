@@ -75,17 +75,24 @@ class VideoService:
         video_file,
         video_name: str,
         video_ct: Optional[str],
+        genre_id: Optional[uuid.UUID] = None,   # 🔹 поддержка жанра
     ) -> Video:
+        # генерим UUID видео
         vid = str(uuid.uuid4())
+
+        # расширения файлов
         preview_ext = os.path.splitext(preview_name)[1] or ".jpg"
         video_ext = os.path.splitext(video_name)[1] or ".mp4"
 
+        # ключи для хранения в S3
         preview_key = f"videos/{vid}/preview{preview_ext}"
         video_key = f"videos/{vid}/source{video_ext}"
 
+        # заливаем в MinIO
         _put_stream(self.s3, self.bucket, preview_key, preview_file, _guess_ct(preview_name, preview_ct))
         _put_stream(self.s3, self.bucket, video_key, video_file, _guess_ct(video_name, video_ct))
 
+        # создаём модель
         v = Video(
             id=vid,
             title=title,
@@ -93,22 +100,14 @@ class VideoService:
             preview_img=preview_key,
             video=video_key,
             status=VideoStatus.ACTIVE,
+            genre_id=genre_id,   # 🔹 сохраняем жанр
         )
         return self.repo.create(v)
 
+
+
     def list(self, status, q, limit: int, offset: int):
         return self.repo.list(status=status, q=q, limit=limit, offset=offset)
-
-    def patch(self, vid: str, *, title: Optional[str], description: Optional[str], status: Optional[VideoStatus]) -> Video:
-        v = self._ensure(vid)
-        if title and title.strip():
-            v.title = title
-        if description and description.strip():
-            v.description = description
-        if status is not None:
-            v.status = status
-        v.updated_at = datetime.utcnow()
-        return self.repo.save(v)
 
     def replace_file(self, vid: str, *, fileobj, filename: str, content_type: Optional[str]) -> Video:
         v = self._ensure(vid)

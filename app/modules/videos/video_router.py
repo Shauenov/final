@@ -1,6 +1,7 @@
 # app/modules/videos/video_router.py
 from __future__ import annotations
 from typing import List, Optional
+import uuid
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from sqlmodel import Session
 
@@ -11,7 +12,7 @@ from app.utils.utils_media import is_image_stream
 from app.modules.videos.video_repository import VideoStatus
 from app.schemas import VideoOut
 
-router = APIRouter(prefix="/videos", tags=["videos"])
+router = APIRouter()
 
 def svc(session: Session = Depends(get_session)) -> VideoService:
     return VideoService(session)
@@ -22,12 +23,14 @@ async def create_video(
     description: str = Form(...),
     preview: UploadFile = File(..., description="preview image"),
     file: UploadFile = File(..., description="video file"),
+    genre_id: Optional[uuid.UUID] = Form(None, description="genre UUID"),   # 🔹 добавил
     service: VideoService = Depends(svc),
 ):
     if not (file.content_type or "").startswith("video/"):
         raise HTTPException(400, "file must be a video/*")
     if not is_image_stream(preview.file, preview.content_type):
         raise HTTPException(400, "preview must be a real image (jpg/png/webp/gif)")
+
     return service.create(
         title=title,
         description=description,
@@ -37,6 +40,7 @@ async def create_video(
         video_file=file.file,
         video_name=file.filename or "video.mp4",
         video_ct=file.content_type,
+        genre_id=genre_id,   # 🔹 передаём в сервис
     )
 
 @router.get("", response_model=List[VideoOut], dependencies=[Depends(admin_guard)])
@@ -62,9 +66,16 @@ async def patch_video(
     title: str = Form(""),
     description: str = Form(""),
     status: Optional[VideoStatus] = Form(None, description="Active | Archived"),
+    genre_id: Optional[uuid.UUID] = Form(None, description="genre UUID"),   # 🔹 добавил
     service: VideoService = Depends(svc),
 ):
-    return service.patch(vid, title=title, description=description, status=status)
+    return service.patch(
+        vid,
+        title=title,
+        description=description,
+        status=status,
+        genre_id=genre_id,   # 🔹 передаём в сервис
+    )
 
 @router.post("/{vid}/archive", response_model=VideoOut, dependencies=[Depends(admin_guard)])
 def archive_video(vid: str, service: VideoService = Depends(svc)):

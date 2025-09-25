@@ -155,12 +155,14 @@ class VideoOut(BaseModel):
     preview_img: str
     video: str
     status: VideoStatus
+    genre_id: Optional[uuid.UUID] = None   # 🔹 добавил
     created_at: datetime
     updated_at: datetime
     deleted_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
+
 
 
 # ───────────── Books ─────────────

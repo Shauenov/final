@@ -13,12 +13,14 @@ class GenreRepository():
         with Session(engine) as session:
             genre = Genre(
                 name=data.name,
-                description=data.description
+                description=data.description,
+                type=data.type   # 🔹 обязательно передавать
             )
             session.add(genre)
             session.commit()
             session.refresh(genre)
             return GenrePublic.model_validate(genre)
+
 
     def findById(self, id: str) -> GenrePublic | None:
         with Session(engine) as session:
