@@ -47,11 +47,6 @@ async def create_music(
     ],
     preview_img: UploadFile,
     music: UploadFile,
-<<<<<<< HEAD
-    background_tasks: BackgroundTasks
-):
-    return await service.create(playlist_id=str(playlist_id), title=title, description=description, preview_img=preview_img, music=music, background_tasks=background_tasks)
-=======
     background_tasks: BackgroundTasks,
     genre_id: Annotated[str | None, Form(...)] = None
 ):
@@ -64,7 +59,6 @@ async def create_music(
         music=music,
         background_tasks=background_tasks
     )
->>>>>>> 31efe2f5bfda746c96832aa04b1661f16325d3f1
 
 @music_router.delete("/{id}", response_model=MusicPublic)
 def delete_music(

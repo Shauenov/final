@@ -1,16 +1,14 @@
 # app/models.py
-from __future__ import annotations
-
 import uuid
+import enum
 from typing import Optional, List
 from datetime import datetime, UTC
 
-from sqlmodel import SQLModel, Field, Relationship, Column, DateTime, UniqueConstraint
-from sqlalchemy.types import Enum as SQLAlchemyEnum
-import enum
+from sqlmodel import SQLModel, Field, Column, DateTime, UniqueConstraint, Relationship
+from sqlalchemy.types import Enum as SAEnum
 
 
-# ───────────────────────── Users (CURRENT) ─────────────────────────
+# ───────────────────────── Users ─────────────────────────
 class User(SQLModel, table=True):
     __tablename__ = "users"
 
@@ -24,7 +22,7 @@ class User(SQLModel, table=True):
     deleted_at: Optional[datetime] = Field(default=None, nullable=True)
 
 
-# ───────────────────────── Videos (CURRENT) ────────────────────────
+# ───────────────────────── Videos ────────────────────────
 class VideoStatus(str, enum.Enum):
     ACTIVE = "Active"
     ARCHIVED = "Archived"
@@ -44,7 +42,7 @@ class Video(SQLModel, table=True):
     deleted_at: Optional[datetime] = Field(default=None)
 
 
-# ───────────────────────── Books (CURRENT, ТЗ) ─────────────────────
+# ───────────────────────── Books ─────────────────────────
 class Book(SQLModel, table=True):
     __tablename__ = "books"
 
@@ -70,23 +68,7 @@ class Book(SQLModel, table=True):
     deleted_at: Optional[datetime] = Field(default=None, nullable=True)
 
 
-# ───────────────────────── Playlist / Music / Genre (INCOMING) ────
-class Playlist(SQLModel, table=True):
-    __tablename__ = "playlist"
-
-    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    title: str
-    description: str
-    preview_img: str
-    musics: List["Music"] = Relationship(back_populates="playlist", cascade_delete=True)
-
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), nullable=False)
-    updated_at: datetime = Field(
-        sa_column=Column(DateTime(timezone=True), default=datetime.now(UTC), onupdate=datetime.now(UTC))
-    )
-    deleted_at: Optional[datetime] = Field(default=None, nullable=True)
-
-
+# ───────────────────────── Playlist / Music / Genre ─────
 class MusicStatus(str, enum.Enum):
     ACTIVE = "active"
     PROCESSING = "processing"
@@ -99,6 +81,26 @@ class GenreType(str, enum.Enum):
     BOOK = "book"
 
 
+class Playlist(SQLModel, table=True):
+    __tablename__ = "playlist"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    title: str
+    description: str
+    preview_img: str
+
+    musics: List["Music"] = Relationship(
+        back_populates="playlist",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), nullable=False)
+    updated_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), default=datetime.now(UTC), onupdate=datetime.now(UTC))
+    )
+    deleted_at: Optional[datetime] = Field(default=None, nullable=True)
+
+
 class Genre(SQLModel, table=True):
     __tablename__ = "genre"
     __table_args__ = (
@@ -108,7 +110,7 @@ class Genre(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     name: str = Field(nullable=False, max_length=100)
     description: Optional[str] = None
-    type: GenreType = Field(sa_column=Column(SQLAlchemyEnum(GenreType, name="genre_type_enum"), nullable=False))
+    type: GenreType = Field(sa_column=Column(SAEnum(GenreType, name="genre_type_enum"), nullable=False))
 
     musics: List["Music"] = Relationship(back_populates="genre")
 
@@ -125,12 +127,15 @@ class Music(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
 
     playlist_id: uuid.UUID = Field(foreign_key="playlist.id", nullable=False)
-    playlist: Optional[Playlist] = Relationship(back_populates="musics")
+    playlist: Optional["Playlist"] = Relationship(back_populates="musics")
 
     genre_id: Optional[uuid.UUID] = Field(default=None, foreign_key="genre.id", nullable=True)
-    genre: Optional[Genre] = Relationship(back_populates="musics")
+    genre: Optional["Genre"] = Relationship(back_populates="musics")
 
-    status: MusicStatus = Field(sa_column=Column(SQLAlchemyEnum(MusicStatus, name="music_status_enum")), default=MusicStatus.PROCESSING)
+    status: MusicStatus = Field(
+        sa_column=Column(SAEnum(MusicStatus, name="music_status_enum")),
+        default=MusicStatus.PROCESSING,
+    )
     title: str
     description: str
     preview_img: str
@@ -144,7 +149,7 @@ class Music(SQLModel, table=True):
     deleted_at: Optional[datetime] = Field(default=None, nullable=True)
 
 
-# ───────────────────────── Ads / Statistics (INCOMING) ────────────
+# ───────────────────────── Ads / Statistics ─────────────
 class AdStatus(str, enum.Enum):
     ACTIVE = "active"
     PROCESSING = "processing"
@@ -157,9 +162,15 @@ class Ad(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     title: str
     video_url: str
-    status: AdStatus = Field(sa_column=Column(SQLAlchemyEnum(AdStatus, name="ad_status_enum")), default=AdStatus.PROCESSING)
+    status: AdStatus = Field(
+        sa_column=Column(SAEnum(AdStatus, name="ad_status_enum")),
+        default=AdStatus.PROCESSING,
+    )
 
-    statistics: List["Statistics"] = Relationship(back_populates="ad", cascade_delete=True)
+    statistics: List["Statistics"] = Relationship(
+        back_populates="ad",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
 
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), nullable=False)
     updated_at: datetime = Field(
@@ -175,7 +186,7 @@ class Statistics(SQLModel, table=True):
     device_id: uuid.UUID
 
     ad_id: uuid.UUID = Field(foreign_key="ad.id", nullable=False)
-    ad: Ad = Relationship(back_populates="statistics")
+    ad: Optional["Ad"] = Relationship(back_populates="statistics")
 
     watched_full: bool = Field(default=False)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), nullable=False)

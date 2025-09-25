@@ -6,10 +6,7 @@ import uuid
 from fastapi import HTTPException, UploadFile, BackgroundTasks
 from app.models import MusicStatus
 from app.core.logger import logger
-<<<<<<< HEAD
-=======
 from app.modules.genre.genre_service import GenreService
->>>>>>> 31efe2f5bfda746c96832aa04b1661f16325d3f1
 from app.schemas import CreateMusic, UpdateMusic, MusicPublic
 from app.modules.music.music_repository import MusicRepository
 from app.modules.playlist.playlist_service import PlaylistService
@@ -23,11 +20,7 @@ class MusicService():
         self.repo = MusicRepository()
         self.transcoder = TranscoderService()
         self.playlistService = PlaylistService()
-<<<<<<< HEAD
-
-=======
         self.genreService = GenreService()
->>>>>>> 31efe2f5bfda746c96832aa04b1661f16325d3f1
 
     def transcodeMusic(self, music_id, input_path: str, output_path: str):
         status = self.transcoder.transcodeToHls(input_path, output_path)
@@ -36,9 +29,6 @@ class MusicService():
         else:
             self.updateById(music_id, UpdateMusic(status=MusicStatus.FAILED))
 
-<<<<<<< HEAD
-    async def create(self, playlist_id: str, title: str, description: str, preview_img: UploadFile, music: UploadFile, background_tasks: BackgroundTasks) -> MusicPublic:
-=======
     async def create(
         self,
         playlist_id: str,
@@ -49,21 +39,17 @@ class MusicService():
         background_tasks: BackgroundTasks,
         genre_id: str | None = None,
     ) -> MusicPublic:
->>>>>>> 31efe2f5bfda746c96832aa04b1661f16325d3f1
         try:
             playlist = self.playlistService.findById(playlist_id)
             if not playlist:
                 raise HTTPException(status_code=400, detail="Playlist not found")
 
-<<<<<<< HEAD
-=======
             genre = None
             if genre_id:
                 genre = self.genreService.get_by_id(genre_id)
                 if not genre:
                     raise HTTPException(status_code=400, detail="Genre not found")
 
->>>>>>> 31efe2f5bfda746c96832aa04b1661f16325d3f1
             self.validate_audio_file(music)
             with tempfile.NamedTemporaryFile(delete=False) as tmp:
                 image_tmp_path = tmp.name
@@ -92,12 +78,8 @@ class MusicService():
                     description=description,
                     duration=duration,
                     music_url=music_key,
-<<<<<<< HEAD
-                    preview_img=image_key
-=======
                     preview_img=image_key,
                     genre_id=genre_id if genre else None,
->>>>>>> 31efe2f5bfda746c96832aa04b1661f16325d3f1
                 )
             )
 

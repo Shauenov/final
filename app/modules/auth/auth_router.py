@@ -7,7 +7,7 @@ from app.core.security import decode_token
 from app.modules.auth.auth_dto import SignInDto, SignUpDto
 from app.modules.auth.auth_service import AuthService
 
-auth_router = APIRouter(prefix="/auth", tags=["auth"])
+auth_router = APIRouter(prefix="/auth",)
 service = AuthService()
 
 def _extract_token_from_request(request: Request) -> str:

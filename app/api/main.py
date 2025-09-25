@@ -21,7 +21,7 @@ api_router = APIRouter()
 
 # порядок соответствует навигации админки
 api_router.include_router(auth_router, tags=["Auth"])
-api_router.include_router(user_router, prefix="/users", tags=["Users"])
+api_router.include_router(user_router, prefix="/users")
 
 # контентные модули
 api_router.include_router(music_router, prefix="/music", tags=["Music"])

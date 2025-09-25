@@ -1,8 +1,8 @@
 # app/schemas.py
 from __future__ import annotations
 
-from datetime import datetime
 import uuid
+from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel, Field
 
@@ -11,18 +11,18 @@ from app.models import VideoStatus, AdStatus, GenreType
 
 PHONE_RE = r"^\+7\d{10}$"
 
-# ───────────────────────── Users ─────────────────────────
+# ───────────── Users ─────────────
 class CreateUser(BaseModel):
     fullname: str = Field(min_length=2)
     phone: str = Field(pattern=PHONE_RE)
     password: str = Field(min_length=8)
-    role: Optional[str] = Field(default="user")
+    role: Optional[str] = "user"
 
 class UpdateUser(BaseModel):
     fullname: Optional[str] = Field(default=None, min_length=2)
     phone: Optional[str] = Field(default=None, pattern=PHONE_RE)
     password: Optional[str] = Field(default=None, min_length=8)
-    role: Optional[str] = Field(default=None)
+    role: Optional[str] = None
 
 class UserPublic(BaseModel):
     id: uuid.UUID
@@ -34,15 +34,32 @@ class UserPublic(BaseModel):
         from_attributes = True
 
 
-# ───────────────────────── Playlist / Music ─────────────────────────
+# ───────────── Music / Playlist ─────────────
 class CreatePlaylist(BaseModel):
     title: str
     description: str
+    # В API мы принимаем файл через UploadFile; это поле — то, что будет храниться (URL/ключ).
     preview_img: str
 
 class UpdatePlaylist(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
+
+class CreateMusic(BaseModel):
+    title: str
+    playlist_id: uuid.UUID
+    description: str
+    # Аналогично: в API загрузка файлом, в БД храним строку-ключ/URL.
+    preview_img: str
+    music_url: str
+    duration: int
+    genre_id: Optional[uuid.UUID] = None
+
+class UpdateMusic(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    music_url: Optional[str] = None
+    genre_id: Optional[uuid.UUID] = None
 
 class MusicPublic(BaseModel):
     id: uuid.UUID
@@ -64,7 +81,7 @@ class PlaylistPublic(BaseModel):
     title: str
     description: str
     preview_img: str
-    musics: List["MusicPublic"] = []  # форвард-реф
+    musics: List["MusicPublic"] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
     deleted_at: Optional[datetime] = None
@@ -73,7 +90,7 @@ class PlaylistPublic(BaseModel):
         from_attributes = True
 
 
-# ───────────────────────── Genre ─────────────────────────
+# ───────────── Genres ─────────────
 class GenreBase(BaseModel):
     name: str = Field(max_length=100)
     description: Optional[str] = None
@@ -100,7 +117,7 @@ class GenrePublic(BaseModel):
         from_attributes = True
 
 
-# ───────────────────────── Ads ─────────────────────────
+# ───────────── Ads ─────────────
 class CreateAd(BaseModel):
     title: str
 
@@ -122,7 +139,7 @@ class AdPublic(BaseModel):
         from_attributes = True
 
 
-# ───────────────────────── Videos ─────────────────────────
+# ───────────── Videos ─────────────
 class VideoCreate(BaseModel):
     title: str
     description: str
@@ -146,7 +163,7 @@ class VideoOut(BaseModel):
         from_attributes = True
 
 
-# ───────────────────────── Books (ТЗ) ─────────────────────────
+# ───────────── Books ─────────────
 class BookCreate(BaseModel):
     title: str = Field(min_length=1)
     author: str = Field(min_length=1)
@@ -178,3 +195,7 @@ class BookOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ВАЖНО: починка форвард-рефов
+PlaylistPublic.model_rebuild()

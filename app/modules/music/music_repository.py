@@ -1,7 +1,4 @@
-<<<<<<< HEAD
-=======
 from datetime import UTC, datetime
->>>>>>> 31efe2f5bfda746c96832aa04b1661f16325d3f1
 import uuid
 from app.models import Music
 from app.core.db import engine
@@ -65,13 +62,8 @@ class MusicRepository():
         result = session.exec(stmt).first()
         if not result:
             return None
-<<<<<<< HEAD
-        session.delete(result)
-        session.commit()
-=======
         result.deleted_at = datetime.now(UTC)
         session.add(result)
         session.commit()
         session.refresh(result)
->>>>>>> 31efe2f5bfda746c96832aa04b1661f16325d3f1
         return MusicPublic.model_validate(result)
