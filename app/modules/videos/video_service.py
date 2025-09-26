@@ -1,3 +1,4 @@
+# app/modules/videos/video_service.py
 from __future__ import annotations
 
 import os
@@ -59,7 +60,7 @@ class VideoService:
         if not v or v.deleted_at:
             raise HTTPException(404, "Video not found")
         return v
-    
+
     def get(self, vid: str) -> Video:
         """Вернуть видео (404 если нет/удалено)."""
         return self._ensure(vid)
@@ -75,10 +76,18 @@ class VideoService:
         video_file,
         video_name: str,
         video_ct: Optional[str],
-        genre_id: Optional[uuid.UUID] = None,   # 🔹 поддержка жанра
+        genre_id: Optional[str] = None,   # << изменено: принимаем строку
     ) -> Video:
         # генерим UUID видео
         vid = str(uuid.uuid4())
+
+        # нормализуем genre_id (str -> UUID | None)
+        gid: Optional[uuid.UUID] = None
+        if genre_id:
+            try:
+                gid = uuid.UUID(genre_id)
+            except ValueError:
+                raise HTTPException(422, "genre_id must be a valid UUID string")
 
         # расширения файлов
         preview_ext = os.path.splitext(preview_name)[1] or ".jpg"
@@ -100,11 +109,9 @@ class VideoService:
             preview_img=preview_key,
             video=video_key,
             status=VideoStatus.ACTIVE,
-            genre_id=genre_id,   # 🔹 сохраняем жанр
+            genre_id=gid,  # << сохраняем UUID или None
         )
         return self.repo.create(v)
-
-
 
     def list(self, status, q, limit: int, offset: int):
         return self.repo.list(status=status, q=q, limit=limit, offset=offset)
@@ -126,6 +133,37 @@ class VideoService:
                 pass
 
         v.video = new_key
+        v.updated_at = datetime.utcnow()
+        return self.repo.save(v)
+
+    def patch(
+        self,
+        vid: str,
+        *,
+        title: str = "",
+        description: str = "",
+        status: Optional[VideoStatus] = None,
+        genre_id: Optional[str] = None,  # << строка из формы
+    ) -> Video:
+        v = self._ensure(vid)
+
+        if title:
+            v.title = title
+        if description:
+            v.description = description
+        if status is not None:
+            v.status = status
+
+        # нормализуем genre_id
+        if genre_id is not None:
+            if genre_id == "":
+                v.genre_id = None
+            else:
+                try:
+                    v.genre_id = uuid.UUID(genre_id)
+                except ValueError:
+                    raise HTTPException(422, "genre_id must be a valid UUID string")
+
         v.updated_at = datetime.utcnow()
         return self.repo.save(v)
 

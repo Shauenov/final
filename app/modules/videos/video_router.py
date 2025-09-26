@@ -23,7 +23,7 @@ async def create_video(
     description: str = Form(...),
     preview: UploadFile = File(..., description="preview image"),
     file: UploadFile = File(..., description="video file"),
-    genre_id: Optional[uuid.UUID] = Form(None, description="genre UUID"),   # 🔹 добавил
+    genre_id: Optional[str] = Form(None, description="genre UUID"),  # << изменено: str
     service: VideoService = Depends(svc),
 ):
     if not (file.content_type or "").startswith("video/"):
@@ -40,7 +40,7 @@ async def create_video(
         video_file=file.file,
         video_name=file.filename or "video.mp4",
         video_ct=file.content_type,
-        genre_id=genre_id,   # 🔹 передаём в сервис
+        genre_id=genre_id,  # передаём как строку
     )
 
 @router.get("", response_model=List[VideoOut], dependencies=[Depends(admin_guard)])
@@ -66,7 +66,7 @@ async def patch_video(
     title: str = Form(""),
     description: str = Form(""),
     status: Optional[VideoStatus] = Form(None, description="Active | Archived"),
-    genre_id: Optional[uuid.UUID] = Form(None, description="genre UUID"),   # 🔹 добавил
+    genre_id: Optional[str] = Form(None, description="genre UUID"),  # << изменено: str
     service: VideoService = Depends(svc),
 ):
     return service.patch(
@@ -74,7 +74,7 @@ async def patch_video(
         title=title,
         description=description,
         status=status,
-        genre_id=genre_id,   # 🔹 передаём в сервис
+        genre_id=genre_id,  # строка или None/"" -> сервис сам разберёт
     )
 
 @router.post("/{vid}/archive", response_model=VideoOut, dependencies=[Depends(admin_guard)])
