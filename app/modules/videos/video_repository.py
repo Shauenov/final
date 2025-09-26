@@ -3,13 +3,8 @@ from __future__ import annotations
 from typing import Iterable, Optional
 from sqlmodel import Session, select
 
-from app.models import Video
+from app.models import Video, VideoStatus
 from enum import Enum
-
-class VideoStatus(str, Enum):
-    ACTIVE = "Active"
-    ARCHIVED = "Archived"
-
 
 class VideoRepository:
     def __init__(self, session: Session):

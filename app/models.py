@@ -24,9 +24,10 @@ class User(SQLModel, table=True):
 
 # ───────────────────────── Videos ────────────────────────
 class VideoStatus(str, enum.Enum):
-    ACTIVE = "Active"
-    ARCHIVED = "Archived"
-
+    ACTIVE = "ACTIVE"
+    ARCHIVED = "ARCHIVED"
+    PROCESSING = "PROCESSING"        # 🔹 добавь
+    FAILED = "FAILED"   
 
 class Video(SQLModel, table=True):
     __tablename__ = "video"
@@ -36,7 +37,7 @@ class Video(SQLModel, table=True):
     description: str
     preview_img: str                                 # s3 key
     video: str                                       # s3 key
-    status: VideoStatus = Field(default=VideoStatus.ACTIVE)
+    status: VideoStatus = Field(default=VideoStatus.PROCESSING)
 
     # 🔹 связь с жанром
     genre_id: Optional[uuid.UUID] = Field(

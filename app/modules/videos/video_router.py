@@ -1,15 +1,13 @@
-# app/modules/videos/video_router.py
 from __future__ import annotations
 from typing import List, Optional
-import uuid
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, BackgroundTasks
 from sqlmodel import Session
 
 from app.core.db import get_session
+from app.models import VideoStatus
 from app.modules.auth.auth_router import admin_guard
 from app.modules.videos.video_service import VideoService
 from app.utils.utils_media import is_image_stream
-from app.modules.videos.video_repository import VideoStatus
 from app.schemas import VideoOut
 
 router = APIRouter()
@@ -23,8 +21,9 @@ async def create_video(
     description: str = Form(...),
     preview: UploadFile = File(..., description="preview image"),
     file: UploadFile = File(..., description="video file"),
-    genre_id: Optional[str] = Form(None, description="genre UUID"),  # << изменено: str
+    genre_id: Optional[str] = Form(None, description="genre UUID"),
     service: VideoService = Depends(svc),
+    background_tasks: BackgroundTasks = None,  # просто параметр, НЕ Depends
 ):
     if not (file.content_type or "").startswith("video/"):
         raise HTTPException(400, "file must be a video/*")
@@ -34,13 +33,10 @@ async def create_video(
     return service.create(
         title=title,
         description=description,
-        preview_file=preview.file,
-        preview_name=preview.filename or "preview.jpg",
-        preview_ct=preview.content_type,
-        video_file=file.file,
-        video_name=file.filename or "video.mp4",
-        video_ct=file.content_type,
-        genre_id=genre_id,  # передаём как строку
+        preview_upload=preview,
+        video_upload=file,
+        genre_id=genre_id,
+        background_tasks=background_tasks,
     )
 
 @router.get("", response_model=List[VideoOut], dependencies=[Depends(admin_guard)])
@@ -66,7 +62,7 @@ async def patch_video(
     title: str = Form(""),
     description: str = Form(""),
     status: Optional[VideoStatus] = Form(None, description="Active | Archived"),
-    genre_id: Optional[str] = Form(None, description="genre UUID"),  # << изменено: str
+    genre_id: Optional[str] = Form(None, description="genre UUID"),
     service: VideoService = Depends(svc),
 ):
     return service.patch(

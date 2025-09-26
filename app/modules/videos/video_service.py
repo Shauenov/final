@@ -1,50 +1,31 @@
-# app/modules/videos/video_service.py
 from __future__ import annotations
 
 import os
 import uuid
-from datetime import datetime
-from typing import BinaryIO, Optional
+import tempfile
+from datetime import datetime, UTC
+from typing import Optional, IO
 
-from fastapi import HTTPException
+from fastapi import HTTPException, UploadFile, BackgroundTasks
 from sqlmodel import Session
 
 from app.core.config import settings
 from app.core.s3 import MinioService
-from app.models import Video
-from app.modules.videos.video_repository import VideoRepository, VideoStatus
+from app.models import Video, VideoStatus
+from app.modules.videos.video_repository import VideoRepository
+from app.modules.videos.videos_transcode_service import VideosTranscodeService
 
 
-def _guess_ct(name: str, fallback: str = "application/octet-stream") -> str:
+def _guess_ct(name: str, fallback: Optional[str] = None) -> str:
     import mimetypes
-    return mimetypes.guess_type(name)[0] or fallback
+    return fallback or mimetypes.guess_type(name)[0] or "application/octet-stream"
 
 
 def _bucket() -> str:
-    if not getattr(settings, "AWS_S3_BUCKET_NAME", None):
+    b = getattr(settings, "AWS_S3_BUCKET_NAME", None)
+    if not b:
         raise RuntimeError("AWS_S3_BUCKET_NAME is not set")
-    return settings.AWS_S3_BUCKET_NAME
-
-
-def _put_stream(s3: MinioService, bucket: str, key: str, fileobj: BinaryIO, content_type: str):
-    # MinIO требует длину потока
-    pos = fileobj.tell()
-    fileobj.seek(0, 2)
-    length = fileobj.tell()
-    fileobj.seek(pos, 0)
-    if length <= 0:
-        from io import BytesIO
-        data = fileobj.read()
-        length = len(data)
-        fileobj = BytesIO(data)
-
-    s3.client.put_object(
-        bucket_name=bucket,
-        object_name=key,
-        data=fileobj,
-        length=length,
-        content_type=content_type,
-    )
+    return b
 
 
 class VideoService:
@@ -53,6 +34,7 @@ class VideoService:
         self.session = session
         self.s3 = MinioService()
         self.bucket = _bucket()
+        self.hls = VideosTranscodeService()
 
     # --- helpers ---
     def _ensure(self, vid: str) -> Video:
@@ -61,8 +43,31 @@ class VideoService:
             raise HTTPException(404, "Video not found")
         return v
 
+    def _uuid_or_none(self, s: Optional[str]) -> Optional[uuid.UUID]:
+        if not s or not str(s).strip():
+            return None
+        try:
+            return uuid.UUID(str(s).strip())
+        except ValueError:
+            raise HTTPException(status_code=422, detail="genre_id must be a valid UUID")
+
+    def _copy_stream_to_tmp(self, stream: IO[bytes]) -> str:
+        """
+        Копирует поток (seek'нём в начало, если можно) в temp-файл. Возвращает путь.
+        """
+        try:
+            stream.seek(0)
+        except Exception:
+            pass
+        with tempfile.NamedTemporaryFile(delete=False) as tmp:
+            while True:
+                chunk = stream.read(1024 * 1024)
+                if not chunk:
+                    break
+                tmp.write(chunk)
+            return tmp.name
+
     def get(self, vid: str) -> Video:
-        """Вернуть видео (404 если нет/удалено)."""
         return self._ensure(vid)
 
     # --- use cases ---
@@ -70,51 +75,110 @@ class VideoService:
         self,
         title: str,
         description: str,
-        preview_file,
-        preview_name: str,
-        preview_ct: Optional[str],
-        video_file,
-        video_name: str,
-        video_ct: Optional[str],
-        genre_id: Optional[str] = None,   # << изменено: принимаем строку
+        preview_upload: UploadFile,
+        video_upload: UploadFile,
+        genre_id: Optional[str] = None,
+        background_tasks: Optional[BackgroundTasks] = None,
     ) -> Video:
-        # генерим UUID видео
         vid = str(uuid.uuid4())
 
-        # нормализуем genre_id (str -> UUID | None)
-        gid: Optional[uuid.UUID] = None
-        if genre_id:
-            try:
-                gid = uuid.UUID(genre_id)
-            except ValueError:
-                raise HTTPException(422, "genre_id must be a valid UUID string")
-
-        # расширения файлов
-        preview_ext = os.path.splitext(preview_name)[1] or ".jpg"
-        video_ext = os.path.splitext(video_name)[1] or ".mp4"
-
-        # ключи для хранения в S3
+        # ключи
+        preview_ext = os.path.splitext(preview_upload.filename or "")[1] or ".jpg"
+        source_ext = os.path.splitext(video_upload.filename or "")[1] or ".mp4"
         preview_key = f"videos/{vid}/preview{preview_ext}"
-        video_key = f"videos/{vid}/source{video_ext}"
+        source_key = f"videos/{vid}/source{source_ext}"
 
-        # заливаем в MinIO
-        _put_stream(self.s3, self.bucket, preview_key, preview_file, _guess_ct(preview_name, preview_ct))
-        _put_stream(self.s3, self.bucket, video_key, video_file, _guess_ct(video_name, video_ct))
+        # 1) Превью → tmp → MinIO
+        tmp_prev_path = self._copy_stream_to_tmp(preview_upload.file)
+        try:
+            self.s3.client.fput_object(
+                bucket_name=self.bucket,
+                object_name=preview_key,
+                file_path=tmp_prev_path,
+                content_type=_guess_ct(preview_upload.filename, preview_upload.content_type),
+            )
+        finally:
+            try:
+                os.remove(tmp_prev_path)
+            except Exception:
+                pass
 
-        # создаём модель
+        # 2) Исходник → tmp → MinIO (как source)
+        tmp_vid_path = self._copy_stream_to_tmp(video_upload.file)
+        self.s3.client.fput_object(
+            bucket_name=self.bucket,
+            object_name=source_key,
+            file_path=tmp_vid_path,
+            content_type=_guess_ct(video_upload.filename, video_upload.content_type),
+        )
+
+        # 3) Создаём запись в статусе PROCESSING
         v = Video(
             id=vid,
             title=title,
             description=description,
             preview_img=preview_key,
-            video=video_key,
-            status=VideoStatus.ACTIVE,
-            genre_id=gid,  # << сохраняем UUID или None
+            video=source_key,  # временно (до HLS)
+            status=VideoStatus.PROCESSING,
+            genre_id=self._uuid_or_none(genre_id),
         )
-        return self.repo.create(v)
+        v = self.repo.create(v)
+
+        # 4) Фон: HLS → MinIO → обновление записи
+        if background_tasks is not None:
+            background_tasks.add_task(self._bg_transcode_and_update, vid, tmp_vid_path)
+        else:
+            self._bg_transcode_and_update(vid, tmp_vid_path)
+
+        return v
+
+    def _bg_transcode_and_update(self, vid: str, tmp_src_path: str) -> None:
+        try:
+            master_key = self.hls.transcode_and_upload(vid=vid, src_path=tmp_src_path)
+            v = self._ensure(vid)
+            v.video = master_key
+            v.status = VideoStatus.ACTIVE
+            v.updated_at = datetime.now(UTC)
+            self.repo.save(v)
+        except Exception:
+            try:
+                v = self._ensure(vid)
+                v.status = VideoStatus.FAILED
+                v.updated_at = datetime.now(UTC)
+                self.repo.save(v)
+            except Exception:
+                pass
+        finally:
+            try:
+                os.remove(tmp_src_path)
+            except Exception:
+                pass
 
     def list(self, status, q, limit: int, offset: int):
         return self.repo.list(status=status, q=q, limit=limit, offset=offset)
+
+    def patch(
+        self,
+        vid: str,
+        *,
+        title: Optional[str] = None,
+        description: Optional[str] = None,
+        status: Optional[VideoStatus] = None,
+        genre_id: Optional[str] = None,
+    ) -> Video:
+        v = self._ensure(vid)
+
+        if title is not None and title != "":
+            v.title = title
+        if description is not None and description != "":
+            v.description = description
+        if status is not None:
+            v.status = status
+        if genre_id is not None:  # пришла строка ("" -> None)
+            v.genre_id = self._uuid_or_none(genre_id)
+
+        v.updated_at = datetime.now(UTC)
+        return self.repo.save(v)
 
     def replace_file(self, vid: str, *, fileobj, filename: str, content_type: Optional[str]) -> Video:
         v = self._ensure(vid)
@@ -123,79 +187,62 @@ class VideoService:
 
         ext = os.path.splitext(filename)[1] or ".mp4"
         new_key = f"videos/{vid}/source{ext}"
-        old_key = v.video
 
-        _put_stream(self.s3, self.bucket, new_key, fileobj, _guess_ct(filename, content_type))
-        if old_key and old_key != new_key:
+        # грузим новый исходник
+        with tempfile.NamedTemporaryFile(delete=False) as tmp:
+            while True:
+                chunk = fileobj.read(1024 * 1024)
+                if not chunk:
+                    break
+                tmp.write(chunk)
+            tmp_path = tmp.name
+        try:
+            self.s3.client.fput_object(
+                bucket_name=self.bucket,
+                object_name=new_key,
+                file_path=tmp_path,
+                content_type=_guess_ct(filename, content_type),
+            )
+        finally:
             try:
-                self.s3.client.remove_object(self.bucket, old_key)
+                os.remove(tmp_path)
             except Exception:
                 pass
 
         v.video = new_key
-        v.updated_at = datetime.utcnow()
-        return self.repo.save(v)
-
-    def patch(
-        self,
-        vid: str,
-        *,
-        title: str = "",
-        description: str = "",
-        status: Optional[VideoStatus] = None,
-        genre_id: Optional[str] = None,  # << строка из формы
-    ) -> Video:
-        v = self._ensure(vid)
-
-        if title:
-            v.title = title
-        if description:
-            v.description = description
-        if status is not None:
-            v.status = status
-
-        # нормализуем genre_id
-        if genre_id is not None:
-            if genre_id == "":
-                v.genre_id = None
-            else:
-                try:
-                    v.genre_id = uuid.UUID(genre_id)
-                except ValueError:
-                    raise HTTPException(422, "genre_id must be a valid UUID string")
-
-        v.updated_at = datetime.utcnow()
+        v.updated_at = datetime.now(UTC)
         return self.repo.save(v)
 
     def archive(self, vid: str) -> Video:
         v = self._ensure(vid)
         v.status = VideoStatus.ARCHIVED
-        v.updated_at = datetime.utcnow()
+        v.updated_at = datetime.now(UTC)
         return self.repo.save(v)
 
     def restore(self, vid: str) -> Video:
         v = self._ensure(vid)
         v.status = VideoStatus.ACTIVE
-        v.updated_at = datetime.utcnow()
+        v.updated_at = datetime.now(UTC)
         return self.repo.save(v)
 
     def soft_delete(self, vid: str) -> dict:
         v = self._ensure(vid)
-        v.deleted_at = datetime.utcnow()
+        v.deleted_at = datetime.now(UTC)
         v.updated_at = v.deleted_at
         self.repo.save(v)
         return {"deleted": vid}
 
     def play_links(self, vid: str) -> dict:
         v = self._ensure(vid)
-        if v.status == VideoStatus.ARCHIVED:
-            raise HTTPException(404, "Video not available")
+        if v.status != VideoStatus.ACTIVE:
+            raise HTTPException(404, "Video not ready")
+
         try:
             self.s3.client.stat_object(self.bucket, v.video)
         except Exception:
             raise HTTPException(410, "Video file missing from storage")
 
-        ts = int(datetime.utcnow().timestamp())
+        ts = int(datetime.now(UTC).timestamp())
         return {
             "video_url": self.s3.presign_get(v.video, bucket=self.bucket, expires_seconds=3600) + f"&_={ts}",
             "preview_url": self.s3.presign_get(v.preview_img, bucket=self.bucket, expires_seconds=3600) + f"&_={ts}",
