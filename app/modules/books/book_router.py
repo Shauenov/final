@@ -36,6 +36,15 @@ def get_book(
     service = BookService(session)
     return service.get(book_id)
 
+
+@router.get("/{book_id}/links", response_model=dict)
+def get_book_links(
+    book_id: uuid.UUID,
+    session: Session = Depends(get_session),
+):
+    service = BookService(session)
+    return service.presigned_links(book_id)
+
 # ---------- WRITE (только админ) ----------
 @router.post("", response_model=BookOut, dependencies=[Depends(admin_guard)])
 def create_book(

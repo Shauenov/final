@@ -41,3 +41,4 @@ python-logging-loki
 uvloop
 httptools
 watchfiles
+scikit-learn

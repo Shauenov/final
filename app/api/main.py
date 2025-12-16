@@ -11,6 +11,7 @@ from app.modules.playlist.playlist_router import playlist_router
 from app.modules.genre.genre_router import genre_router
 from app.modules.videos.video_router import router as video_router
 from app.modules.books.book_router import router as book_router
+from app.modules.search.search_router import router as search_router
 
 # ── Other ───────────────────────────────
 from app.modules.statistics.statistics_router import statistics_router
@@ -29,6 +30,7 @@ api_router.include_router(playlist_router, prefix="/playlists", tags=["Playlists
 api_router.include_router(genre_router, prefix="/genres", tags=["Genres"])
 api_router.include_router(video_router, prefix="/videos", tags=["Videos"])
 api_router.include_router(book_router, prefix="/books", tags=["Books"])
+api_router.include_router(search_router, prefix="/search", tags=["Search"])
 
 # статистика и реклама
 api_router.include_router(statistics_router, prefix="/statistics", tags=["Statistics"])

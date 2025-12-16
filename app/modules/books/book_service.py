@@ -54,6 +54,17 @@ class BookService:
             raise HTTPException(404, "Book not found")
         return book
 
+    def presigned_links(self, book_id: uuid.UUID) -> dict:
+        book = self._ensure(book_id)
+        links = {}
+        if book.file_url:
+            key = book.file_url.replace(f"{settings.AWS_S3_PUBLIC_URL}/{self.bucket}/", "")
+            links["file_url"] = self.minio.presign_get(key, bucket=self.bucket, expires_seconds=3600)
+        if book.cover_url:
+            key = book.cover_url.replace(f"{settings.AWS_S3_PUBLIC_URL}/{self.bucket}/", "")
+            links["cover_url"] = self.minio.presign_get(key, bucket=self.bucket, expires_seconds=3600)
+        return links
+
     # CREATE
     def create(
         self,

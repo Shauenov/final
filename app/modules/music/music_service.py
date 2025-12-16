@@ -1,8 +1,10 @@
 import json
 import mimetypes
-import subprocess
 import tempfile
 import uuid
+from pathlib import Path
+import subprocess
+import shutil
 from fastapi import HTTPException, UploadFile, BackgroundTasks
 from app.models import MusicStatus
 from app.core.logger import logger
@@ -22,12 +24,43 @@ class MusicService():
         self.playlistService = PlaylistService()
         self.genreService = GenreService()
 
-    def transcodeMusic(self, music_id, input_path: str, output_path: str):
-        status = self.transcoder.transcodeToHls(input_path, output_path)
-        if status:
-            self.updateById(music_id, UpdateMusic(status=MusicStatus.ACTIVE, music_url=output_path))
-        else:
-            self.updateById(music_id, UpdateMusic(status=MusicStatus.FAILED))
+    def _upload_hls_dir(self, local_dir: Path, music_id: str) -> str:
+        prefix = f"music/hls/{music_id}/"
+        count = 0
+        for p in local_dir.glob("*"):
+            if p.is_file():
+                key = f"{prefix}{p.name}"
+                ctype, _ = mimetypes.guess_type(p.name)
+                self.minio.client.fput_object(
+                    bucket_name=settings.AWS_S3_BUCKET_NAME,
+                    object_name=key,
+                    file_path=str(p),
+                    content_type=ctype or "application/octet-stream",
+                )
+                count += 1
+        if count == 0:
+            raise RuntimeError("No HLS files to upload")
+        return f"{settings.AWS_S3_PUBLIC_URL}/{settings.AWS_S3_BUCKET_NAME}/{prefix}index.m3u8"
+
+    def transcodeMusic(self, music_id, input_path: str):
+        tmp_dir = Path(tempfile.mkdtemp(prefix="hls_music_"))
+        output_path = tmp_dir / "index.m3u8"
+        try:
+            status = self.transcoder.transcodeToHls(input_path, str(output_path))
+            if status:
+                master_url = self._upload_hls_dir(tmp_dir, music_id)
+                self.updateById(music_id, UpdateMusic(status=MusicStatus.ACTIVE, music_url=master_url))
+            else:
+                self.updateById(music_id, UpdateMusic(status=MusicStatus.FAILED))
+        finally:
+            try:
+                Path(input_path).unlink(missing_ok=True)
+            except Exception:
+                pass
+            try:
+                shutil.rmtree(tmp_dir, ignore_errors=True)
+            except Exception:
+                pass
 
     async def create(
         self,
@@ -83,7 +116,7 @@ class MusicService():
                 )
             )
 
-            background_tasks.add_task(self.transcodeMusic, music_obj.id, music_tmp_path, f"assets/transcodings/{title}.m3u8")
+            background_tasks.add_task(self.transcodeMusic, music_obj.id, music_tmp_path)
 
             return music_obj
         except HTTPException as e:
@@ -136,13 +169,34 @@ class MusicService():
             logger.error("%s", e)
             raise HTTPException(status_code=500)
 
+    def _extract_key(self, url_or_key: str) -> str:
+        bucket = settings.AWS_S3_BUCKET_NAME
+        marker = f"/{bucket}/"
+        if marker in url_or_key:
+            return url_or_key.split(marker, 1)[1]
+        return url_or_key.lstrip("/")
+
+    def presigned_links(self, id: str) -> dict:
+        music = self.findById(id)
+        if not music:
+            raise HTTPException(status_code=404, detail="Music not found")
+
+        links = {}
+        if music.music_url:
+            key = self._extract_key(music.music_url)
+            links["music_url"] = self.minio.presign_get(key, bucket=settings.AWS_S3_BUCKET_NAME, expires_seconds=3600)
+        if music.preview_img:
+            key = self._extract_key(music.preview_img)
+            links["preview_img"] = self.minio.presign_get(key, bucket=settings.AWS_S3_BUCKET_NAME, expires_seconds=3600)
+        return links
+
 
     def validate_audio_file(self, file: UploadFile):
         ALLOWED_AUDIO_TYPES = {
             "audio/mpeg",
             "audio/wav",
             "audio/ogg",
-            "audio/x-flac"
+            "audio/x-flac",
             "audio/mp4",
             "audio/vnd.wave",
             "video/webm",

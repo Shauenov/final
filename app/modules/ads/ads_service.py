@@ -1,9 +1,11 @@
 import tempfile
 import uuid
+from pathlib import Path
 from fastapi import BackgroundTasks, HTTPException, UploadFile
 
 import mimetypes
 import os
+import shutil
 from app.models import Ad, AdStatus
 from app.core.logger import logger
 from app.core.config import settings
@@ -20,12 +22,43 @@ class AdService():
         self.repo = AdRepository()
         self.transcoder = TranscoderService()
 
-    def transcodeAd(self, ad_id, input_path: str, output_path: str, title: str):
-        status = self.transcoder.transcodeToHls(input_path, output_path)
-        if status:
-            self.updateById(ad_id, UpdateAd(status=AdStatus.ACTIVE, video_url=f"{settings.AWS_S3_PUBLIC_URL}/hls/{title}.m3u8"))
-        else:
-            self.updateById(ad_id, UpdateAd(status=AdStatus.FAILED))
+    def _upload_hls_dir(self, local_dir: Path, ad_id: str) -> str:
+        prefix = f"ads/hls/{ad_id}/"
+        count = 0
+        for p in local_dir.glob("*"):
+            if p.is_file():
+                key = f"{prefix}{p.name}"
+                ctype, _ = mimetypes.guess_type(p.name)
+                self.minio.client.fput_object(
+                    bucket_name=settings.AWS_S3_BUCKET_NAME,
+                    object_name=key,
+                    file_path=str(p),
+                    content_type=ctype or "application/octet-stream",
+                )
+                count += 1
+        if count == 0:
+            raise RuntimeError("No HLS files to upload")
+        return f"{settings.AWS_S3_PUBLIC_URL}/{settings.AWS_S3_BUCKET_NAME}/{prefix}index.m3u8"
+
+    def transcodeAd(self, ad_id, input_path: str):
+        tmp_dir = Path(tempfile.mkdtemp(prefix="hls_ad_"))
+        output_path = tmp_dir / "index.m3u8"
+        try:
+            status = self.transcoder.transcodeToHls(input_path, str(output_path))
+            if status:
+                master_url = self._upload_hls_dir(tmp_dir, ad_id)
+                self.updateById(ad_id, UpdateAd(status=AdStatus.ACTIVE, video_url=master_url))
+            else:
+                self.updateById(ad_id, UpdateAd(status=AdStatus.FAILED))
+        finally:
+            try:
+                Path(input_path).unlink(missing_ok=True)
+            except Exception:
+                pass
+            try:
+                shutil.rmtree(tmp_dir, ignore_errors=True)
+            except Exception:
+                pass
 
     async def create(self, data: CreateAd, ad: UploadFile, background_tasks: BackgroundTasks) -> AdPublic:
         try:
@@ -46,7 +79,7 @@ class AdService():
                 )
             )
 
-            background_tasks.add_task(self.transcodeAd, ad_obj.id, tmp_path, f"assets/transcodings/{data.title}.m3u8", data.title)
+            background_tasks.add_task(self.transcodeAd, ad_obj.id, tmp_path)
 
             return ad_obj
         except HTTPException as e:

@@ -5,7 +5,7 @@ from sqlmodel import Session
 
 from app.core.db import get_session
 from app.models import VideoStatus
-from app.modules.auth.auth_router import admin_guard
+from app.modules.auth.auth_router import admin_guard, any_user_guard
 from app.modules.videos.video_service import VideoService
 from app.utils.utils_media import is_image_stream
 from app.schemas import VideoOut
@@ -55,6 +55,14 @@ def get_video(
     service: VideoService = Depends(svc),
 ):
     return service.get(vid)
+
+
+@router.get("/{vid}/play", dependencies=[Depends(any_user_guard)])
+def play_video(
+    vid: str,
+    service: VideoService = Depends(svc),
+):
+    return service.play_links(vid)
 
 @router.patch("/{vid}", response_model=VideoOut, dependencies=[Depends(admin_guard)])
 async def patch_video(

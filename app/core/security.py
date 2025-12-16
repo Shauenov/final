@@ -7,10 +7,16 @@ from datetime import datetime, timedelta, timezone
 pwd_context = CryptContext(schemes=["bcrypt"])
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Validate password hash safely.
+
+    We intentionally do *not* fall back to plain-text equality to avoid
+    accidentally accepting unhashed passwords if the DB contains bad data.
+    """
     try:
         return pwd_context.verify(plain_password, hashed_password)
     except Exception:
-        return plain_password == hashed_password
+        # Any verification error should be treated as a failure, not bypassed.
+        return False
 
 def get_hashed_password(plain_password: str) -> str:
     return pwd_context.hash(plain_password)

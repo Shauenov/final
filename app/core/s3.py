@@ -3,6 +3,7 @@ import mimetypes
 import os
 import tempfile
 from typing import Optional
+from datetime import timedelta
 from fastapi import UploadFile
 from minio import Minio
 from minio.error import S3Error
@@ -68,7 +69,8 @@ class MinioService:
     def presign_get(self, object_name: str, bucket: str, expires_seconds: int = 3600) -> str:
         """Выдаёт временную ссылку на скачивание (рекомендуется вместо public-policy)."""
         try:
-            return self.client.presigned_get_object(bucket, object_name, expires=expires_seconds)
+            expires = expires_seconds if hasattr(expires_seconds, "total_seconds") else timedelta(seconds=expires_seconds)
+            return self.client.presigned_get_object(bucket, object_name, expires=expires)
         except S3Error as e:
             logger.error("presign_get error: %s", e)
             raise
