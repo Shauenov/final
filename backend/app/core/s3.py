@@ -4,6 +4,7 @@ import os
 import tempfile
 from typing import Optional
 from datetime import timedelta
+from urllib.parse import urlparse
 from fastapi import UploadFile
 from minio import Minio
 from minio.error import S3Error
@@ -70,10 +71,54 @@ class MinioService:
         """Выдаёт временную ссылку на скачивание (рекомендуется вместо public-policy)."""
         try:
             expires = expires_seconds if hasattr(expires_seconds, "total_seconds") else timedelta(seconds=expires_seconds)
-            return self.client.presigned_get_object(bucket, object_name, expires=expires)
+            presign_endpoint = settings.AWS_S3_PUBLIC_URL or settings.AWS_S3_ENDPOINT_URL
+            if "://" not in presign_endpoint:
+                presign_endpoint = f"http://{presign_endpoint}"
+            parsed = urlparse(presign_endpoint)
+            endpoint = parsed.netloc or parsed.path
+            secure = parsed.scheme == "https"
+            presign_client = Minio(
+                endpoint=endpoint,
+                access_key=settings.AWS_ACCESS_KEY_ID,
+                secret_key=settings.AWS_SECRET_ACCESS_KEY,
+                region=getattr(settings, "AWS_REGION", None),
+                secure=secure,
+            )
+            return presign_client.presigned_get_object(bucket, object_name, expires=expires)
         except S3Error as e:
             logger.error("presign_get error: %s", e)
             raise
+
+    def presign_hls_playlist(self, object_name: str, bucket: str, expires_seconds: int = 3600) -> str:
+        """Generate HLS playlist with presigned segment URLs."""
+        response = None
+        try:
+            response = self.client.get_object(bucket, object_name)
+            raw = response.read().decode("utf-8")
+            prefix = object_name.rsplit("/", 1)[0] + "/" if "/" in object_name else ""
+            lines = []
+            for line in raw.splitlines():
+                stripped = line.strip()
+                if not stripped or stripped.startswith("#"):
+                    lines.append(line)
+                    continue
+                if stripped.startswith("http://") or stripped.startswith("https://"):
+                    lines.append(stripped)
+                    continue
+                seg_key = f"{prefix}{stripped}"
+                seg_url = self.presign_get(seg_key, bucket=bucket, expires_seconds=expires_seconds)
+                lines.append(seg_url)
+            return "\n".join(lines) + "\n"
+        except Exception as e:
+            logger.error("presign_hls_playlist error: %s", e)
+            raise
+        finally:
+            if response is not None:
+                try:
+                    response.close()
+                    response.release_conn()
+                except Exception:
+                    pass
 
     def upload_uploadfile(
         self,

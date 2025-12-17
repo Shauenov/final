@@ -242,9 +242,10 @@ class VideoService:
         except Exception:
             raise HTTPException(410, "Video file missing from storage")
 
-        ts = int(datetime.now(UTC).timestamp())
+        playlist = self.s3.presign_hls_playlist(v.video, bucket=self.bucket, expires_seconds=3600)
         return {
-            "video_url": self.s3.presign_get(v.video, bucket=self.bucket, expires_seconds=3600) + f"&_={ts}",
-            "preview_url": self.s3.presign_get(v.preview_img, bucket=self.bucket, expires_seconds=3600) + f"&_={ts}",
+            "video_url": self.s3.presign_get(v.video, bucket=self.bucket, expires_seconds=3600),
+            "playlist": playlist,
+            "preview_url": self.s3.presign_get(v.preview_img, bucket=self.bucket, expires_seconds=3600),
             "status": v.status,
         }

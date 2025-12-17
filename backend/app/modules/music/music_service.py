@@ -181,13 +181,31 @@ class MusicService():
         if not music:
             raise HTTPException(status_code=404, detail="Music not found")
 
+        def presign_if_exists(key: str) -> str | None:
+            try:
+                self.minio.client.stat_object(settings.AWS_S3_BUCKET_NAME, key)
+                return self.minio.presign_get(key, bucket=settings.AWS_S3_BUCKET_NAME, expires_seconds=3600)
+            except Exception:
+                return None
+
         links = {}
         if music.music_url:
             key = self._extract_key(music.music_url)
-            links["music_url"] = self.minio.presign_get(key, bucket=settings.AWS_S3_BUCKET_NAME, expires_seconds=3600)
+            link = presign_if_exists(key)
+            if not link:
+                fallback_key = f"music/hls/{id}/index.m3u8"
+                link = presign_if_exists(fallback_key)
+                key = fallback_key
+            if not link:
+                raise HTTPException(status_code=404, detail="Music file missing from storage")
+            if key.endswith(".m3u8"):
+                links["playlist"] = self.minio.presign_hls_playlist(key, bucket=settings.AWS_S3_BUCKET_NAME, expires_seconds=3600)
+            links["music_url"] = link
         if music.preview_img:
             key = self._extract_key(music.preview_img)
-            links["preview_img"] = self.minio.presign_get(key, bucket=settings.AWS_S3_BUCKET_NAME, expires_seconds=3600)
+            link = presign_if_exists(key)
+            if link:
+                links["preview_img"] = link
         return links
 
 

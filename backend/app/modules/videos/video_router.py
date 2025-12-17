@@ -39,7 +39,7 @@ async def create_video(
         background_tasks=background_tasks,
     )
 
-@router.get("", response_model=List[VideoOut], dependencies=[Depends(admin_guard)])
+@router.get("", response_model=List[VideoOut], dependencies=[Depends(any_user_guard)])
 def list_videos(
     status: Optional[VideoStatus] = Query(default=None),
     q: Optional[str] = Query(default=None, description="substring in title/description"),
@@ -49,7 +49,7 @@ def list_videos(
 ):
     return service.list(status=status, q=q, limit=limit, offset=offset)
 
-@router.get("/{vid}", response_model=VideoOut, dependencies=[Depends(admin_guard)])
+@router.get("/{vid}", response_model=VideoOut, dependencies=[Depends(any_user_guard)])
 def get_video(
     vid: str,
     service: VideoService = Depends(svc),
